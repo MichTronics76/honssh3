@@ -646,3 +646,14 @@ webhook-url =
 # required: YES
 # default: false
 enabled = false
+
+#-----------------------#
+#       DEVELOPMENT     #
+#-----------------------#
+[devmode]
+
+# Enable development mode features including colored terminal output
+# input: Boolean (true/false)
+# required: No
+# default: false
+enabled = true
