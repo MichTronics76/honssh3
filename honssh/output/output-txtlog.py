@@ -44,6 +44,16 @@ class Plugin(object):
 
     def connection_made(self, sensor):
         self.auth_log_file = self.cfg.get(['folders', 'log_path']) + "/" + sensor['session']['start_time'][:8]
+        
+        # Log connection with country information immediately when attacker connects
+        session = sensor['session']
+        country = session['country']
+        if country != '':
+            country = ' - ' + country
+        
+        # Log to daily auth log file
+        self.auth_log(session['start_time'], session['peer_ip'], 
+                     'CONNECTED', 'N/A', 'CONNECTION%s' % country)
 
     def login_successful(self, sensor):
         session = sensor['session']

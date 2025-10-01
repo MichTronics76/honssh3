@@ -117,6 +117,10 @@ class Output(object):
         if not country:
             country = ''
 
+        # Log incoming connection with country information to main terminal output
+        country_display = ' - ' + country if country else ''
+        log.msg(log.LCYAN, '[CONN]', 'Incoming Connection from %s:%s%s' % (self.end_ip, self.end_port, country_display))
+
         session = self.connections.add_session(self.sensor_name, self.end_ip, self.end_port, dt, self.honey_ip,
                                                self.honey_port, self.session_id, self.logLocation, country)
         plugins.run_plugins_function(self.loaded_plugins, 'connection_made', True, session)
