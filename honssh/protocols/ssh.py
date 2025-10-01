@@ -39,6 +39,7 @@ class SSH(baseProtocol.BaseProtocol):
         2: 'SSH_MSG_IGNORE',  # ['string', 'data']
         3: 'SSH_MSG_UNIMPLEMENTED',  # ['uint32', 'seq_no']
         4: 'SSH_MSG_DEBUG',  # ['boolean', 'always_display']
+        7: 'SSH_MSG_EXT_INFO',  # RFC 8308 extension info - appears after NEWKEYS
         5: 'SSH_MSG_SERVICE_REQUEST',  # ['string', 'service_name']
         6: 'SSH_MSG_SERVICE_ACCEPT',  # ['string', 'service_name']
         20: 'SSH_MSG_KEXINIT',  # ['string', 'service_name']
@@ -72,6 +73,8 @@ class SSH(baseProtocol.BaseProtocol):
         self.username = ''
         self.password = ''
         self.auth_type = ''
+        # Pass-through mode: disable post-auth redirection until base auth stable
+        self.pass_through_auth = True
 
         self.cfg = Config.getInstance()
 
@@ -81,6 +84,9 @@ class SSH(baseProtocol.BaseProtocol):
         self.server = server
         self.channels = []
         self.client = None
+        # Track EXT_INFO legality per side (RFC 8308: only immediately after NEWKEYS and before any other packet)
+        # Keys: '[SERVER]' (attacker->us) and '[CLIENT]' (honeypot->us) naming consistent with existing code paths.
+        self._ext_info_allowed = {'[SERVER]': False, '[CLIENT]': False}
 
     def set_client(self, client):
         self.client = client
@@ -94,6 +100,40 @@ class SSH(baseProtocol.BaseProtocol):
             packet = self.packetLayout[message_num]
         except:
             packet = 'UNKNOWN_%s' % message_num
+
+        if packet == 'SSH_MSG_NEWKEYS':
+            # Next packet from this side may legally be EXT_INFO; mark allowed
+            self._ext_info_allowed[parent] = True
+
+        # Controlled EXT_INFO forwarding:
+        # Only forward if:
+        #  1. Config [scan] allow_ext_info = true (default false for compatibility)
+        #  2. Arrives immediately after NEWKEYS (no intervening other packets from that side)
+        # Else drop to satisfy strict clients (e.g. PuTTY error about ordering).
+        if packet == 'SSH_MSG_EXT_INFO':
+            allow_cfg = False
+            try:
+                allow_cfg = self.cfg.getboolean(['scan', 'allow_ext_info'])
+            except Exception:
+                allow_cfg = False
+            if not allow_cfg or not self._ext_info_allowed.get(parent, False):
+                try:
+                    log.msg(log.LYELLOW, '[SSH]', 'Dropping SSH_MSG_EXT_INFO (ordering or config)')
+                except Exception:
+                    pass
+                self.sendOn = False
+                return
+            else:
+                try:
+                    log.msg(log.LCYAN, '[SSH]', 'Forwarding SSH_MSG_EXT_INFO (allowed by config & ordering)')
+                except Exception:
+                    pass
+            # After using the allowance, clear it so only one EXT_INFO is accepted per NEWKEYS.
+            self._ext_info_allowed[parent] = False
+
+        # If this packet is a normal packet (not EXT_INFO) and not NEWKEYS, clear allowance (cannot follow with EXT_INFO now)
+        if packet not in ('SSH_MSG_NEWKEYS', 'SSH_MSG_EXT_INFO') and self._ext_info_allowed.get(parent):
+            self._ext_info_allowed[parent] = False
 
         if not self.server.post_auth_started:
             if parent == '[SERVER]':
@@ -120,12 +160,17 @@ class SSH(baseProtocol.BaseProtocol):
             if self.auth_type == 'password':
                 self.extract_bool()
                 self.password = self.extract_string()
-                self.start_post_auth()
+                # Debug credential capture (option 1) - log immediately when password auth attempt parsed
+                try:
+                    log.msg(log.LCYAN, '[AUTH][DEBUG]', f'Captured credential attempt username="{self.username}" password="{self.password}" auth_type=password')
+                except Exception:
+                    pass
+                # In pass-through mode do not start post-auth redirection; let backend decide.
 
             elif self.auth_type == 'publickey':
                 if self.cfg.getboolean(['hp-restrict', 'disable_publicKey']):
                     self.sendOn = False
-                    self.server.sendPacket(51, self.string_to_hex('password') + chr(0))
+                    self.server.sendPacket(51, self.string_to_hex('password') + b'\x00')
 
         elif packet == 'SSH_MSG_USERAUTH_FAILURE':
             auth_list = self.extract_string()
@@ -133,17 +178,17 @@ class SSH(baseProtocol.BaseProtocol):
             if 'publickey' in auth_list:
                 if self.cfg.getboolean(['hp-restrict', 'disable_publicKey']):
                     log.msg(log.LPURPLE, '[SSH]', 'Detected Public Key Auth - Disabling!')
-                    payload = self.string_to_hex('password') + chr(0)
+                    payload = self.string_to_hex('password') + b'\x00'
 
-            if not self.server.post_auth_started:
-                if self.username != '' and self.password != '':
-                    self.out.login_failed(self.username, self.password)
-                    self.server.login_failed(self.username, self.password)
+            if not self.server.post_auth_started and self.username and self.password:
+                self.out.login_failed(self.username, self.password)
+                self.server.login_failed(self.username, self.password)
 
         elif packet == 'SSH_MSG_USERAUTH_SUCCESS':
             if len(self.username) > 0 and len(self.password) > 0:
                 self.out.login_successful(self.username, self.password, self.server.spoofed)
                 self.server.login_successful(self.username, self.password)
+            # No post-auth redirection in pass-through mode
 
         elif packet == 'SSH_MSG_USERAUTH_INFO_REQUEST':
             self.auth_type = 'keyboard-interactive'
@@ -325,10 +370,11 @@ class SSH(baseProtocol.BaseProtocol):
                     self.sendOn = False
                     self.send_back(parent, 82, '')
 
-        if self.server.post_auth_started:
+        if self.server.post_auth_started and not self.pass_through_auth:
             if parent == '[CLIENT]':
-                self.server.post_auth.send_next()
-                self.sendOn = False
+                if getattr(self.server.post_auth, 'auth_packets', None) is not None:
+                    self.server.post_auth.send_next()
+                    self.sendOn = False
 
         if self.sendOn:
             if parent == '[SERVER]':
@@ -377,7 +423,7 @@ class SSH(baseProtocol.BaseProtocol):
         if self.password != "":
             if not self.server.post_auth_started:
                 self.server.start_post_auth(self.username, self.password, self.auth_type)
-                self.sendOn = False
+                # Do not suppress forwarding; allow auth packet to continue to the honeypot.
 
     def inject_key(self, server_id, message):
         payload = self.int_to_hex(server_id) + self.string_to_hex(message)

@@ -26,7 +26,10 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import ConfigParser
+try:
+    import configparser as ConfigParser
+except ImportError:  # pragma: no cover
+    import ConfigParser
 import os
 import random
 import re
@@ -66,9 +69,8 @@ def get_connection_details(conn_details):
                         logfile = cfg.get(['folders', 'log_path']) + "/spoof.log"
 
                         if os.path.isfile(logfile):
-                            f = file(logfile, 'r')
-                            used_credentials = f.read().splitlines()
-                            f.close()
+                            with open(logfile, 'r') as f:
+                                used_credentials = f.read().splitlines()
 
                             for used_credential in used_credentials:
                                 used_credential = used_credential.strip().split(' - ')
@@ -139,9 +141,8 @@ def write_spoof_log(conn_details):
     found = False
 
     if os.path.isfile(logfile):
-        f = file(logfile, 'r')
-        lines = f.readlines()
-        f.close()
+        with open(logfile, 'r') as f:
+            lines = f.readlines()
 
         for i in range(len(lines)):
             lines[i] = lines[i].strip().split(' - ')
@@ -150,20 +151,16 @@ def write_spoof_log(conn_details):
                 if ip not in lines[i][2:]:
                     lines[i].append(ip)
 
-        f = file(logfile, 'w')
+        with open(logfile, 'w') as f:
+            for line in lines:
+                f.write(' - '.join(line) + '\n')
 
-        for line in lines:
-            f.write(' - '.join(line) + '\n')
-
-        if not found:
-            f.write("%s - %s - %s\n" % (username, password, ip))
-
-        f.close()
+            if not found:
+                f.write("%s - %s - %s\n" % (username, password, ip))
     else:
-        f = file(logfile, 'a')
-        f.write("%s - %s - %s\n" % (username, password, ip))
-        f.close()
+        with open(logfile, 'a') as f:
+            f.write("%s - %s - %s\n" % (username, password, ip))
         set_permissions = True
 
     if set_permissions:
-        os.chmod(logfile, 0644)
+        os.chmod(logfile, 0o644)

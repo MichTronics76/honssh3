@@ -171,7 +171,7 @@ class hpclient(object):
     def publish(self, channel, **kwargs):
         try:
             self.send(msgpublish(self.ident, channel, json.dumps(kwargs).encode('latin1')))
-        except Exception, e:
+        except Exception as e:
             log.err('[PLUGIN][HPFEEDS] - connection to hpfriends lost: {0}'.format(e))
             log.err('[PLUGIN][HPFEEDS] - connecting')
             self.connect()

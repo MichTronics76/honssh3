@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -142,9 +142,8 @@ class Plugin(object):
         if not os.path.isfile(the_file):
             set_permissions = True
 
-        f = file(the_file, 'a')
-        f.write(string)
-        f.close()
+        with open(the_file, 'a') as f:
+            f.write(string)
 
         if set_permissions:
-            os.chmod(the_file, 0644)
+            os.chmod(the_file, 0o644)

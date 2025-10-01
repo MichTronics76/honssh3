@@ -142,11 +142,13 @@ class PostAuth(base_auth_handler.BaseAuth):
         
         if self.conn_details['auth_type'] in ['password', 'keyboard-interactive']:
             if self.conn_details['auth_type'] == 'password':
+                # boolean FALSE for 'password change request' follows the method name
                 packet = [50, self.to_string(self.username) + self.to_string('ssh-connection') + self.to_string(
-                    'password') + '\x00' + self.to_string(self.password)]
+                    'password') + b'\x00' + self.to_string(self.password)]
             elif self.conn_details['auth_type'] == 'keyboard-interactive':
-                packet = [61, '\x00\x00\x00\x01' + self.to_string(self.password)]
-                
+                # num-responses=1 followed by the password string
+                packet = [61, b'\x00\x00\x00\x01' + self.to_string(self.password)]
+
             self.server.sshParse.send_back('[CLIENT]', packet[0], packet[1])
         else:
             log.msg(log.LRED, '[POST_AUTH]', 'Unknown authentication type!')

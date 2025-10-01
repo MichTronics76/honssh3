@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -64,11 +64,11 @@ class HonsshProtocol(protocol.Protocol):
 
     def connectionLost(self, message):
         self.lost = True
-        if not self.factory.command == 'list':
-            print '\rConnection lost\n\r'
+        if self.factory.command != 'list':
+            print('\rConnection lost\n\r')
         try:
             reactor.stop()
-        except:
+        except Exception:
             pass
 
     def cmdList(self):
@@ -83,9 +83,9 @@ class HonsshProtocol(protocol.Protocol):
         self.sendData({'command': 'disconnect', 'uuid': self.factory.uuid})
 
     def escapeCheck(self, sendOn):
-        print
-        print('Connecting to ' + self.factory.uuid + ' - Press Ctrl+A + D to quit')
-        print
+        print()
+        print('Connecting to ' + self.factory.uuid + ' - Press Ctrl+A then D to quit')
+        print()
         test = True
         while test and not self.lost:
             k = self.getch()
@@ -102,35 +102,62 @@ class HonsshProtocol(protocol.Protocol):
         reactor.stop()
 
     def dataReceived(self, data):
+        # Ensure we operate on text
+        if isinstance(data, bytes):
+            data = data.decode(errors='ignore')
         datagrams = data.split('_')
-        for i in range(0, len(datagrams) / 3):
+        count = len(datagrams) // 3
+        for i in range(count):
             datagram = datagrams[3 * i:(3 * i) + 3]
-            if datagram[0] == 'honssh' and datagram[1] == 's':
+            if len(datagram) == 3 and datagram[0] == 'honssh' and datagram[1] == 's':
                 self.theData = datagram[2]
+                self.lastRawBase64 = self.theData  # store for debug
                 self.parsePacket()
             else:
                 print('Received incorrect packet - Disconnecting')
                 reactor.stop()
 
     def sendData(self, theJson):
-        theData = base64.b64encode(json.dumps(theJson))
-        self.transport.write('honssh_c_' + theData + '_')
+        payload = json.dumps(theJson).encode()
+        theData = base64.b64encode(payload).decode()
+        message = f'honssh_c_{theData}_'.encode()
+        self.transport.write(message)
 
     def getData(self, theData):
-        return json.loads(base64.b64decode(theData))
+        raw = base64.b64decode(theData)
+        return json.loads(raw.decode(errors='replace'))
 
     def parsePacket(self):
         theJson = self.getData(self.theData)
         if isinstance(theJson, dict):
-            if theJson['msg']:
-                print theJson['msg']
+            if 'msg' in theJson and theJson['msg']:
+                print(theJson['msg'])
                 reactor.stop()
+                return
+            if 'sessions' in theJson and isinstance(theJson['sessions'], list):
+                try:
+                    self.printPrettyTable([theJson])
+                    reactor.stop()
+                    return
+                except Exception as ex:
+                    print(f'Error rendering sensor object: {ex}')
+            print('Received dict without msg key; raw payload:')
+            try:
+                print(json.dumps(theJson, indent=2))
+            except Exception:
+                print(str(theJson))
+            # Provide raw base64 fragment for debugging
+            if hasattr(self, 'lastRawBase64'):
+                print('Raw base64 segment:', self.lastRawBase64)
+            reactor.stop()
         else:
             if self.factory.command == 'list':
-                if self.factory.style in ['pretty', 'plain']:
+                if isinstance(theJson, list) and len(theJson) == 0:
+                    print('INFO: No active sessions')
+                elif self.factory.style in ['pretty', 'plain']:
                     self.printPrettyTable(theJson)
                 elif self.factory.style == 'json':
-                    print json.dumps(theJson, indent=4)
+                    print(json.dumps(theJson, indent=4))
                 reactor.stop()
             elif self.factory.command in ['view']:
                 sys.stdout.write(theJson)
@@ -143,29 +170,44 @@ class HonsshProtocol(protocol.Protocol):
             if i > sensorLength:
                 sensorLength = i
         if self.factory.style == 'pretty':
-            print "UUID".ljust(34) + "Sensor Name".ljust(sensorLength + 2) + "PeerIP".ljust(17) + "Name".ljust(
-                9) + "Uptime"
+            header = (
+                'UUID'.ljust(34) +
+                'Sensor Name'.ljust(sensorLength + 2) +
+                'PeerIP'.ljust(17) +
+                'Name'.ljust(9) +
+                'Uptime'
+            )
+            print(header)
         for sensor in theJson:
             for session in sensor['sessions']:
                 if len(session['channels']) == 0:
-                    print 'AUTHENTICATING'.ljust(34) + sensor['sensor_name'].ljust(sensorLength + 2) + session[
-                        'peer_ip'].ljust(17)
+                    line = (
+                        'AUTHENTICATING'.ljust(34) +
+                        sensor['sensor_name'].ljust(sensorLength + 2) +
+                        session['peer_ip'].ljust(17)
+                    )
+                    print(line)
                 else:
                     for channel in session['channels']:
                         if 'end_time' not in channel:
                             dt = datetime.datetime.strptime(channel['start_time'], "%Y%m%d_%H%M%S_%f")
                             now = datetime.datetime.now()
                             totalTime = time.gmtime((now - dt).total_seconds())
-                            print channel['uuid'].ljust(34) + sensor['sensor_name'].ljust(sensorLength + 2) + \
-                                  session['peer_ip'].ljust(17) + channel['name'].ljust(9) + time.strftime("%H:%M:%S",
-                                                                                                          totalTime)
+                            line = (
+                                channel['uuid'].ljust(34) +
+                                sensor['sensor_name'].ljust(sensorLength + 2) +
+                                session['peer_ip'].ljust(17) +
+                                channel['name'].ljust(9) +
+                                time.strftime('%H:%M:%S', totalTime)
+                            )
+                            print(line)
 
 
 class HonSSHInteractFactory(protocol.ClientFactory):
     protocol = HonsshProtocol
 
     def clientConnectionFailed(self, connector, reason):
-        print "Failed to connect"
+        print("Failed to connect")
         reactor.stop()
 
 
@@ -180,7 +222,7 @@ def portType(input):
 
 
 def ipType(input):
-    m = re.match('(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)', input)
+    m = re.match(r'(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)', input)
     if m:
         return input
     else:
@@ -188,7 +230,7 @@ def ipType(input):
 
 
 def uuidType(input):
-    m = re.match('^[a-z0-9]{32}$', input)
+    m = re.match(r'^[a-z0-9]{32}$', input)
     if m:
         return input
     else:

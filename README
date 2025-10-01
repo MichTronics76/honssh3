@@ -1,6 +1,8 @@
-!!!
-This project is no longer maintained.
-!!!
+HonSSH3
+
+This is a python3 implementation of HonSSH maked by Thomas Nicholson.
+
+Big thanks to Thomas Nicholson the creator of HonSSH and Upi Tamminen the creator of Kippo.
 
 HonSSH
 

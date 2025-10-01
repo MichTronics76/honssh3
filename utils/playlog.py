@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2009 Upi Tamminen <desaster@gmail.com>
 # All rights reserved.
@@ -79,7 +79,11 @@ def playlog(fd, settings):
                 prevtime = curtime
                 if settings['colorify'] and color:
                     sys.stdout.write(color)
-                sys.stdout.write(data)
+                # Handle bytes vs string for Python 3
+                if isinstance(data, bytes):
+                    sys.stdout.buffer.write(data)
+                else:
+                    sys.stdout.write(data)
                 if settings['colorify'] and color:
                     sys.stdout.write('\033[0m')
                     color = None
@@ -89,18 +93,18 @@ def playlog(fd, settings):
 
 def help(brief = 0):
 
-    print 'Usage: %s [-bfhi] [-m secs] [-w file] <tty-log-file>\n' % \
-        os.path.basename(sys.argv[0])
+    print('Usage: %s [-bfhi] [-m secs] [-w file] <tty-log-file>\n' % \
+        os.path.basename(sys.argv[0]))
 
     if not brief:
-        print '  -f             keep trying to read the log until it\'s closed'
-        print '  -m <seconds>   maximum delay in seconds, to avoid' + \
+        print('  -f             keep trying to read the log until it\'s closed')
+        print('  -m <seconds>   maximum delay in seconds, to avoid' + \
             ' boredom or fast-forward\n' + \
-            '                 to the end. (default is 3.0)'
-        print '  -i             show the input stream instead of output'
-        print '  -b             show both input and output streams'
-        print '  -c             colorify the output stream based on what streams are being received'
-        print '  -h             display this help\n'
+            '                 to the end. (default is 3.0)')
+        print('  -i             show the input stream instead of output')
+        print('  -b             show both input and output streams')
+        print('  -c             colorify the output stream based on what streams are being received')
+        print('  -h             display this help\n')
 
     sys.exit(1)
 
@@ -116,8 +120,8 @@ if __name__ == '__main__':
 
     try:
         optlist, args = getopt.getopt(sys.argv[1:], 'fhibcm:w:', ['help'])
-    except getopt.GetoptError, error:
-        print 'Error: %s\n' % error
+    except getopt.GetoptError as error:
+        print('Error: %s\n' % error)
         help()
 
     for o, a in optlist:
@@ -134,7 +138,7 @@ if __name__ == '__main__':
     try:
         logfd = open(args[0], 'rb')
     except IOError:
-        print "Couldn't open log file!"
+        print("Couldn't open log file!")
         sys.exit(2)
 
     playlog(logfd, settings)

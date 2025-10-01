@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -128,7 +128,7 @@ class Plugin(object):
                 s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
                 s.quit()
                 # End send mail code
-        except Exception, ex:
+        except Exception as ex:
             log.msg(log.LRED, '[PLUGIN][EMAIL][ERR]', str(ex))
 
     def validate_config(self):
@@ -168,7 +168,7 @@ class Plugin(object):
                     if not self.cfg.check_exist(prop):
                         return False
             else:
-                print '[output-txtlog][enabled] must be set to true for email support to work'
+                print('[output-txtlog][enabled] must be set to true for email support to work')
                 return False
 
         return True

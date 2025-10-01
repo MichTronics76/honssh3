@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -132,7 +132,7 @@ class DockerDriver(object):
                 # Create overlay folder if needed
                 if not os.path.exists(self.overlay_folder):
                     os.makedirs(self.overlay_folder)
-                    os.chmod(self.overlay_folder, 0755)
+                    os.chmod(self.overlay_folder, 0o755)
 
                 self._start_inotify()
 

@@ -54,29 +54,32 @@ class Term(baseProtocol.BaseProtocol):
             i.transport.loseConnection()
     
     def parse_packet(self, parent, payload):
-        self.data = payload   
+        # Ensure payload stored as bytes for logging; keep a working string view for command parsing
+        raw = payload if isinstance(payload, (bytes, bytearray)) else payload.encode('utf-8', 'ignore')
+        self.data = raw
+        # Working text (single-byte control assumptions) decoded latin1 to preserve byte values 0x00-0xff
+        work = raw.decode('latin1', 'ignore')
          
         if parent == '[SERVER]':
-            # Log to TTY File
+            # Log raw bytes to TTY file as INPUT
             self.out.input_tty(self.ttylog_file, self.data)
 
-            while len(self.data) > 0:
+            while len(work) > 0:
                 # If Tab Pressed
-                if self.data[:1] == '\x09':
+                if work[:1] == '\x09':
                     self.tabPress = True 
-                    self.data = self.data[1:]
+                    work = work[1:]
                 # If Backspace Pressed
-                elif self.data[:1] == '\x7f' or self.data[:1] == '\x08':
+                elif work[:1] == '\x7f' or work[:1] == '\x08':
                     if self.pointer > 0:
                         self.command = self.command[:self.pointer-1] + self.command[self.pointer:]
                         self.pointer -= 1
-                    self.data = self.data[1:]
+                    work = work[1:]
                 # If enter or ctrl+c or newline
-                elif self.data[:1] == '\x0d' or self.data[:1] == '\x03' or self.data[:1] == '\x0a':
-                    if self.data[:1] == '\x03':
+                elif work[:1] == '\x0d' or work[:1] == '\x03' or work[:1] == '\x0a':
+                    if work[:1] == '\x03':
                         self.command += "^C"
-
-                    self.data = self.data[1:]
+                    work = work[1:]
                     if self.command != '':
                         log.msg(log.LPURPLE, '[TERM]', 'Entered command: %s' % self.command)
                         self.out.command_entered(self.uuid, self.command)
@@ -84,72 +87,72 @@ class Term(baseProtocol.BaseProtocol):
                     self.command = ''
                     self.pointer = 0
                 # If Home Pressed
-                elif self.data[:3] == '\x1b\x4f\x48':
+                elif work[:3] == '\x1b\x4f\x48':
                     self.pointer = 0
-                    self.data = self.data[3:]
+                    work = work[3:]
                 # If End Pressed
-                elif self.data[:3] == '\x1b\x4f\x46':
+                elif work[:3] == '\x1b\x4f\x46':
                     self.pointer = len(self.command)
-                    self.data = self.data[3:]
+                    work = work[3:]
                 # If Right Pressed
-                elif self.data[:3] == '\x1b\x5b\x43':
+                elif work[:3] == '\x1b\x5b\x43':
                     if self.pointer != len(self.command):
                         self.pointer += 1
-                    self.data = self.data[3:]
+                    work = work[3:]
                 # If Left Pressed
-                elif self.data[:3] == '\x1b\x5b\x44':
+                elif work[:3] == '\x1b\x5b\x44':
                     if self.pointer != 0:
                         self.pointer -= 1
-                    self.data = self.data[3:]
+                    work = work[3:]
                 # If up or down arrow
-                elif self.data[:3] == '\x1b\x5b\x41' or self.data[:3] == '\x1b\x5b\x42':
+                elif work[:3] == '\x1b\x5b\x41' or work[:3] == '\x1b\x5b\x42':
                     self.upArrow = True
-                    self.data = self.data[3:]
+                    work = work[3:]
                 else:                   
-                    self.command = self.command[:self.pointer] + self.data[:1] + self.command[self.pointer:]
+                    self.command = self.command[:self.pointer] + work[:1] + self.command[self.pointer:]
                     self.pointer += 1
-                    self.data = self.data[1:]
+                    work = work[1:]
         
         elif parent == '[CLIENT]':
-            # Log to TTY File
+            # Log raw bytes to TTY file as OUTPUT
             self.out.output_tty(self.ttylog_file, self.data)
             for i in self.interactors:
                 i.sendKeystroke(self.data)
             
             if self.tabPress:
-                if not self.data.startswith('\x0d'):
-                    if self.data != '\x07':
-                        self.command = self.command + self.data
+                if not work.startswith('\x0d'):
+                    if work != '\x07':
+                        self.command = self.command + work
                 self.tabPress = False
 
             if self.upArrow:
-                while len(self.data) != 0:
+                while len(work) != 0:
                     # Backspace
-                    if self.data[:1] == '\x08':
+                    if work[:1] == '\x08':
                         self.command = self.command[:-1]
                         self.pointer -= 1
-                        self.data = self.data[1:]
+                        work = work[1:]
                     # ESC[K - Clear Line
-                    elif self.data[:3] == '\x1b\x5b\x4b':
+                    elif work[:3] == '\x1b\x5b\x4b':
                         self.command = self.command[:self.pointer]
-                        self.data = self.data[3:]
-                    elif self.data[:1] == '\x0d':
+                        work = work[3:]
+                    elif work[:1] == '\x0d':
                         self.pointer = 0
-                        self.data = self.data[1:]
+                        work = work[1:]
                     # Right Arrow
-                    elif self.data[:3] == '\x1b\x5b\x43':
+                    elif work[:3] == '\x1b\x5b\x43':
                         self.pointer += 1
-                        self.data = self.data[3:]
-                    elif self.data[:2] == '\x1b\x5b' and self.data[3] == '\x50':
-                        self.data = self.data[4:]
+                        work = work[3:]
+                    elif work[:2] == '\x1b\x5b' and work[3] == '\x50':
+                        work = work[4:]
                     # Needed?!
-                    elif self.data[:1] != '\x07' and self.data[:1] != '\x0d':
-                        self.command = self.command[:self.pointer] + self.data[:1] + self.command[self.pointer:]
+                    elif work[:1] != '\x07' and work[:1] != '\x0d':
+                        self.command = self.command[:self.pointer] + work[:1] + self.command[self.pointer:]
                         self.pointer += 1
-                        self.data = self.data[1:]
+                        work = work[1:]
                     else:
                         self.pointer += 1
-                        self.data = self.data[1:]
+                        work = work[1:]
 
                 self.upArrow = False
             

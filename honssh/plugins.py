@@ -115,7 +115,7 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
                     return return_value
         except AttributeError:
             pass
-        except Exception, ex:
+        except Exception as ex:
             pass
             #log.msg(log.LRED, '[PLUGIN][' + class_name + '][ERR]', str(ex))
 

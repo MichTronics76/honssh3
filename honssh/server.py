@@ -65,6 +65,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.sensor_name = None
         self.honey_ip = None
         self.honey_port = 0
+        # Ensure attribute exists before Twisted sets it after version exchange to avoid AttributeError
+        self.otherVersionString = b''
 
     def connectionMade(self):
         self.out = output_handler.Output(self.factory)
@@ -118,7 +120,18 @@ class HonsshServerTransport(honsshServer.HonsshServer):
             self.out.connection_lost()
 
     def ssh_KEXINIT(self, packet):
-        return honsshServer.HonsshServer.ssh_KEXINIT(self, packet)
+        try:
+            return honsshServer.HonsshServer.ssh_KEXINIT(self, packet)
+        except RuntimeError as e:
+            # Mitigate occasional Twisted RuntimeError: "Cannot send KEXINIT while key exchange state is '_KEY_EXCHANGE_PROGRESSING'"
+            # Some aggressive clients re-send KEXINIT rapidly (or a rekey collides). We can safely ignore the second one.
+            if 'Cannot send KEXINIT' in str(e):
+                try:
+                    log.msg(log.LYELLOW, '[SSH]', 'Ignoring duplicate KEXINIT while key exchange progressing')
+                except Exception:
+                    pass
+                return
+            raise
 
     def dispatchMessage(self, message_num, payload):
         if honsshServer.HonsshServer.isEncrypted(self, "both"):
@@ -150,7 +163,28 @@ class HonsshServerTransport(honsshServer.HonsshServer):
     def connection_setup(self):
         self.wasConnected = True
         self.out.connection_made(self.peer_ip, self.peer_port, self.honey_ip, self.honey_port, self.sensor_name)
-        self.out.set_version(self.otherVersionString)
+        # Attacker's SSH version string may not yet be available (Twisted sets otherVersionString after receiving banner)
+        version = getattr(self, 'otherVersionString', b'')
+        if version:
+            self.out.set_version(version)
+        else:
+            # Retry a few times shortly after to capture banner without crashing
+            from twisted.internet import reactor as _reactor
+            _reactor.callLater(0.5, self._try_set_version_late, 6)
+
+    def _try_set_version_late(self, remaining):
+        if self.disconnected:
+            return
+        version = getattr(self, 'otherVersionString', b'')
+        if version:
+            try:
+                self.out.set_version(version)
+            except Exception:
+                pass
+            return
+        if remaining > 0:
+            from twisted.internet import reactor as _reactor
+            _reactor.callLater(0.5, self._try_set_version_late, remaining - 1)
 
     def start_post_auth(self, username, password, auth_type):
         self.post_auth_started = True
@@ -172,7 +206,8 @@ class HonsshServerFactory(factory.SSHFactory):
         self.ourVersionString = self.cfg.get(['honeypot', 'ssh_banner'])
 
         if len(self.ourVersionString) > 0:
-            log.msg(log.LPURPLE, '[SERVER]', 'Using ssh_banner for SSH Version String: ' + self.ourVersionString)
+            banner_disp = self.ourVersionString.decode() if isinstance(self.ourVersionString, (bytes, bytearray)) else self.ourVersionString
+            log.msg(log.LPURPLE, '[SERVER]', 'Using ssh_banner for SSH Version String: ' + banner_disp)
         else:
             if self.cfg.getboolean(['honeypot-static', 'enabled']):
                 log.msg(log.LPURPLE, '[SERVER]', 'Acquiring SSH Version String from honey_ip:honey_port')
@@ -196,21 +231,22 @@ class HonsshServerFactory(factory.SSHFactory):
 
     def buildProtocol(self, addr):
         t = HonsshServerTransport()
-
         t.ourVersionString = self.ourVersionString
         t.factory = self
-        t.supportedPublicKeys = self.privateKeys.keys()
-
-        if not self.primes:
-            ske = t.supportedKeyExchanges[:]
-            if 'diffie-hellman-group-exchange-sha1' in ske:
-                ske.remove('diffie-hellman-group-exchange-sha1')
-            if 'diffie-hellman-group-exchange-sha256' in ske:
-                ske.remove('diffie-hellman-group-exchange-sha256')
-            t.supportedKeyExchanges = ske
-
-        t.supportedCiphers = ['aes128-ctr', 'aes192-ctr', 'aes256-ctr', 'aes128-cbc', '3des-cbc', 'blowfish-cbc',
-                              'cast128-cbc', 'aes192-cbc', 'aes256-cbc']
-        t.supportedPublicKeys = ['ssh-rsa', 'ssh-dss']
-        t.supportedMACs = ['hmac-md5', 'hmac-sha1']
+        # Limit advertised host key algorithms to the ones we actually loaded in honssh.tac.
+        # Factory keys dict uses str keys; Twisted expects bytes sequence for supportedPublicKeys.
+        available = []
+        for k in self.privateKeys.keys():
+            # self.privateKeys keys from honssh.tac are str ('ssh-rsa','ssh-dss')
+            if isinstance(k, str):
+                available.append(k.encode())
+            else:
+                available.append(k)
+        # If we have an RSA key, also advertise rsa-sha2-* variants (same key, stronger signatures)
+        if b'ssh-rsa' in available:
+            # Prepend higher preference sha2 variants
+            available = [b'rsa-sha2-512', b'rsa-sha2-256'] + available
+        # Only override if at least one key exists; avoids advertising ed25519 when not present.
+        if available:
+            t.supportedPublicKeys = available
         return t

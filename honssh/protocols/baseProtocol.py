@@ -28,7 +28,8 @@
 
 
 class BaseProtocol(object):
-    data = ''
+    # Raw packet payload under parsing (bytes in Python 3)
+    data = b''
     packetSize = 0
     name = ''
     uuid = ''
@@ -56,17 +57,35 @@ class BaseProtocol(object):
         pass
 
     def extract_int(self, length):
-        value = int(self.data[:length].encode('hex'), 16)
-        self.packetSize = self.packetSize - length
+        """Extract a big-endian integer of 'length' bytes from the front of self.data."""
+        if isinstance(self.data, str):  # legacy safeguard
+            # Convert hex via bytes of ord values
+            chunk = self.data[:length].encode('latin1')
+        else:
+            chunk = self.data[:length]
+        # Avoid ValueError on empty chunk
+        value = int.from_bytes(chunk, byteorder='big') if chunk else 0
+        self.packetSize -= length
         self.data = self.data[length:]
         return value
 
     def extract_string(self):
+        """Extract an SSH 'string' (uint32 length + data). Returns a decoded str when possible."""
         length = self.extract_int(4)
-        value = str(self.data[:length])
+        raw = self.data[:length]
         self.packetSize -= length
         self.data = self.data[length:]
-        return value
+        if isinstance(raw, str):
+            return raw
+        # Try UTF-8 decode; fallback to latin1 to preserve bytes
+        try:
+            return raw.decode('utf-8')
+        except Exception:
+            try:
+                return raw.decode('latin1')
+            except Exception:
+                # Final fallback: repr of bytes
+                return repr(raw)
 
     def extract_bool(self):
         value = self.extract_int(1)
@@ -77,7 +96,7 @@ class BaseProtocol(object):
         self.packetSize = length
         value = self.data
         self.packetSize -= len(value)
-        self.data = ''
+        self.data = b''
         return value
 
     def __deepcopy__(self, memo):

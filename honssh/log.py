@@ -27,7 +27,7 @@
 # SUCH DAMAGE.
 
 from honssh.config import Config
-from twisted.python import log
+from twisted.python import log as twisted_log
 
 PLAIN = '\033[0m'
 RED = '\033[0;31m'
@@ -46,11 +46,31 @@ LCYAN = '\033[1;36m'
 cfg = Config.getInstance()
 
 
-def msg(color, identifier, message):
-    if not isinstance(message, basestring):
+def msg(*args):
+    """Unified logging helper.
+
+    Supports two call patterns:
+      msg(color, identifier, message) -> legacy HonSSH internal usage (preferred).
+      msg(single_string)              -> backward compatibility / quick messages.
+
+    Any other arity collapses all arguments into a space separated message.
+    """
+    if len(args) == 3:
+        color, identifier, message = args
+    elif len(args) == 1:
+        color = ''
+        identifier = '[HONSSH]'
+        message = args[0]
+    else:
+        color = ''
+        identifier = '[HONSSH]'
+        message = ' '.join(repr(a) for a in args)
+
+    if not isinstance(message, str):
         message = repr(message)
 
+    # When devmode enabled include color codes (if provided)
     if cfg.has_option('devmode', 'enabled') and cfg.getboolean(['devmode', 'enabled']):
-            log.msg(color + identifier +  ' - ' + message + '\033[0m')
+        twisted_log.msg(color + identifier + ' - ' + message + '\033[0m')
     else:
-        log.msg(identifier +  ' - ' + message)
+        twisted_log.msg(identifier + ' - ' + message)

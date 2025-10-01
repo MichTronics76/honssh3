@@ -32,46 +32,14 @@ from honssh import log
 
 class HonsshServer(transport.SSHServerTransport):
     def connectionMade(self):
-        """
-        Called when the connection is made to the other side.  We sent our
-        version and the MSG_KEXINIT packet.
-        """
-        self.transport.write('%s\r\n' % (self.ourVersionString,))
-        self.currentEncryptions = transport.SSHCiphers('none', 'none', 'none', 'none')
-        self.currentEncryptions.setKeys('', '', '', '', '', '')
-        self.otherVersionString = 'Unknown'
-
-    def dataReceived(self, data):
-        """
-        First, check for the version string (SSH-2.0-*).  After that has been
-        received, this method adds data to the buffer, and pulls out any
-        packets.
-        
-        @type data: C{str}
-        """
-        self.buf += data
-
-        if not self.gotVersion:
-            if self.buf.find('\n', self.buf.find('SSH-')) == -1:
-                return
-            lines = self.buf.split('\n')
-            for p in lines:
-                if p.startswith('SSH-'):
-                    self.gotVersion = True
-                    self.otherVersionString = p.strip()
-                    remote_version = p.split('-')[1]
-
-                    if remote_version not in self.supportedVersions:
-                        self._unsupportedVersionReceived(remote_version)
-                        return
-                    i = lines.index(p)
-                    self.buf = '\n'.join(lines[i + 1:])
-                    self.sendKexInit()
-        packet = self.getPacket()
-        while packet:
-            message_num = ord(packet[0])
-            self.dispatchMessage(message_num, packet[1:])
-            packet = self.getPacket()
+        """Invoke the base class connectionMade to correctly initialise ciphers and buffers."""
+        # ourVersionString is a str in the config – Twisted expects bytes when writing.
+        # Base class will handle sending the version string; ensure it's bytes-friendly.
+        if isinstance(self.ourVersionString, str):
+            # Twisted's transport.py builds bytes with (self.ourVersionString + b'\r\n') if already bytes.
+            # It checks for isinstance(ourVersionString, bytes); so coerce to bytes here.
+            self.ourVersionString = self.ourVersionString.encode('utf-8')
+        transport.SSHServerTransport.connectionMade(self)
 
     def sendDisconnect(self, reason, desc):
         """
@@ -84,10 +52,10 @@ class HonsshServer(transport.SSHServerTransport):
         @param desc: a description of the reason for the disconnection.
         @type desc: C{str}
         """
-        if 'bad packet length' not in desc:
-            # With python >= 3 we can use super?
+        desc_text = desc.decode(errors='ignore') if isinstance(desc, (bytes, bytearray)) else desc
+        if 'bad packet length' not in desc_text:
             transport.SSHServerTransport.sendDisconnect(self, reason, desc)
         else:
-            self.transport.write('Protocol mismatch.\n')
-            log.msg(log.LRED, '[SERVER]', 'Disconnecting with error, code %s\nreason: %s' % (reason, desc))
+            self.transport.write(b'Protocol mismatch.\n')
+            log.msg(log.LRED, '[SERVER]', 'Disconnecting with error, code %s\nreason: %s' % (reason, desc_text))
             self.transport.loseConnection()

@@ -1,8 +1,8 @@
-python-2.7
-python-twisted
-python-mysqldb
-python-geoip
-python-watchdog
+python-3.6+
+python3-twisted
+python3-mysqldb
+python3-geoip
+python3-watchdog
 
 # If you require docker support:
 docker

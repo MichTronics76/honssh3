@@ -92,7 +92,8 @@ function start_honssh()
     then
         logger -p info "$Script[$$]: Starting honssh in background..."
         echo "$Script[$$]: Starting honssh in background..."
-        twistd -y "$honssh_tac" -l "$honssh_log" --pidfile "$honssh_pid"
+        # Activate virtual environment and run twistd
+        source venv/bin/activate && venv/bin/twistd -y "$honssh_tac" -l "$honssh_log" --pidfile "$honssh_pid"
         tail_log "$honssh_log"
     else
         logger -p err "$Script[$$]: ERROR: There appears to be a pid file already, HonSSH might be running."
@@ -138,13 +139,15 @@ function pki_check()
     then
         logger -p warn "$Script[$$]: WARNING: Unable to find $id_rsa, generating it now..."
         echo "$Script[$$]: WARNING: Unable to find $id_rsa, generating it now..."
-        ckeygen --no-passphrase -t rsa -f "$id_rsa"
+        #ckeygen --no-passphrase -t rsa -f "$id_rsa"
+        ssh-keygen -t rsa -f "$id_rsa" -m PEM -N ""
     fi
     if [ ! -e "$id_dsa" ]
     then
         logger -p warn "$Script[$$]: WARNING: Unable to find $id_dsa, generating it now..."
         echo "$Script[$$]: WARNING: Unable to find $id_dsa, generating it now..."
-        ckeygen --no-passphrase -t dsa -f "$id_dsa"
+        #ckeygen --no-passphrase -t dsa -f "$id_dsa"
+        ssh-keygen -t dsa -f "$id_dsa" -m PEM -N ""
     fi
 }
 

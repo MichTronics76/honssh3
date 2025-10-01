@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -59,9 +59,8 @@ class Plugin(object):
         if not os.path.isfile(self.log_file):
             set_permissions = True
 
-        f = file(self.log_file, 'a')
-        f.write(dt + " - " + message + "\n")
-        f.close()
+        with open(self.log_file, 'a') as f:
+            f.write(dt + " - " + message + "\n")
 
         if set_permissions:
-            os.chmod(self.log_file, 0644)
+            os.chmod(self.log_file, 0o644)

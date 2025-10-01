@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -143,10 +143,10 @@ class Plugin(object):
         try:
             cursor.execute(query, args)
             server.commit()
-        except MySQLdb.OperationalError, e:
+        except MySQLdb.OperationalError as e:
             self.sqlerror(e)
             self.insert(query, args)
-        except Exception, e:
+        except Exception as e:
             self.sqlerror(e)
             server.rollback()
         finally:
@@ -160,10 +160,10 @@ class Plugin(object):
         try:
             cursor.execute(query, args)
             results = cursor.fetchall()
-        except MySQLdb.OperationalError, e:
+        except MySQLdb.OperationalError as e:
             self.sqlerror(e)
             results = self.select(query, args)
-        except Exception, e:
+        except Exception as e:
             self.sqlerror(e)
         finally:
             server.close()

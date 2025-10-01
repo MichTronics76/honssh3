@@ -82,7 +82,11 @@ class PortForward(baseProtocol.BaseProtocol):
         self.do_fin()
 
     def create_packet(self):
-        self.payload = self.payload.encode('hex')
+        if isinstance(self.payload, str):
+            raw = self.payload.encode('utf-8', 'ignore')
+        else:
+            raw = self.payload
+        self.payload = raw.hex()
         tcp_header = self.create_tcp_header()
         ip_header = self.create_ip_header(tcp_header)
         mac_header = self.create_mac_header()
@@ -217,7 +221,7 @@ class PortForward(baseProtocol.BaseProtocol):
         f.close()
 
         if set_permissions:
-            os.chmod(self.pcapFile, 0644)
+            os.chmod(self.pcapFile, 0o644)
 
     def split_n(self, str1, n):
         return [str1[start:start + n] for start in range(0, len(str1), n)]

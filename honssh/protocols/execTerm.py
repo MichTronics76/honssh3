@@ -69,7 +69,7 @@ class ExecTerm(baseProtocol.BaseProtocol):
         if self.scp:
             if parent == '[SERVER]':
                 if self.size == -1:
-                    match = re.match('C\d{4} (\d*) (.*)', self.data)
+                    match = re.match(r'C\d{4} (\d*) (.*)', self.data)
                     if match:
                         self.size = int(match.group(1))
                         self.fileName = str(match.group(2))

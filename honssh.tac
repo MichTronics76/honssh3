@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -31,6 +31,11 @@
 import sys
 import os
 
+# Ensure project root is on sys.path when launched via twistd from another directory
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from twisted.internet import reactor
 from twisted.conch.ssh.keys import Key
 from twisted.python import log
@@ -40,7 +45,7 @@ from honssh.config import Config
 from honssh import server, interact
 
 if not os.path.exists('honssh.cfg'):
-    print '[ERR][FATAL] honssh.cfg is missing!'
+    print('[ERR][FATAL] honssh.cfg is missing!')
     sys.exit(1)
 
 cfg = Config.getInstance()
@@ -66,12 +71,12 @@ Log and session paths
 log_path = cfg.get(['folders', 'log_path'])
 if not os.path.exists(log_path):
     os.makedirs(log_path)
-    os.chmod(log_path, 0755)
+    os.chmod(log_path, 0o755)
 
 session_path = cfg.get(['folders', 'session_path'])
 if not os.path.exists(session_path):
     os.makedirs(session_path)
-    os.chmod(session_path, 0755)
+    os.chmod(session_path, 0o755)
 
 '''
 Read public and private keys
@@ -96,8 +101,20 @@ with open(cfg.get(['honeypot', 'public_key_dsa'])) as publicBlobFile:
 Startup server factory
 '''
 serverFactory = server.HonsshServerFactory()
-serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dss': privateKeyDSA}
-serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dss': publicKeyDSA}
+# Use bytes keys (Twisted negotiates algorithms as bytes). Add rsa-sha2-* aliases mapping
+# to the same RSA key so modern clients choosing SHA2 signature variants succeed.
+serverFactory.privateKeys = {
+    b'ssh-rsa': privateKey,
+    b'rsa-sha2-512': privateKey,
+    b'rsa-sha2-256': privateKey,
+    b'ssh-dss': privateKeyDSA,
+}
+serverFactory.publicKeys = {
+    b'ssh-rsa': publicKey,
+    b'rsa-sha2-512': publicKey,
+    b'rsa-sha2-256': publicKey,
+    b'ssh-dss': publicKeyDSA,
+}
 
 '''
 Start up server

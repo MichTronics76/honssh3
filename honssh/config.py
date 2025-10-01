@@ -26,7 +26,10 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import ConfigParser
+try:
+    import configparser as ConfigParser  # Python 3
+except ImportError:  # pragma: no cover
+    import ConfigParser  # Python 2 fallback
 import inspect
 
 from honssh.utils import validation
@@ -122,26 +125,43 @@ class Config(ConfigParser.ConfigParser):
                     else:
                         return False
             else:
-                print '[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must not be blank.'
+                print('[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must not be blank.')
                 return False
         else:
-            print '[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must exist.'
+            print('[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must exist.')
             return False
 
-    def get(self, prop, raw=False, vars=None, default=None):
-        if ConfigParser.ConfigParser.has_option(self, prop[0], prop[1]):
-            ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], raw, vars)
-        else:
-            ret = ''
+    def get(self, section_or_prop, option=None, *, raw=False, vars=None, fallback=None, default=None):
+        """Unified get method.
 
-        if len(ret) == 0 and default is not None:
-            ret = default
+        Supports two calling styles:
+        1. Legacy project style: get(['section','option'], default='value')
+        2. Standard ConfigParser style: get(section, option, raw=False, vars=None, fallback=None)
 
-        return ret
+        'default' is treated the same as 'fallback' for legacy style.
+        """
+        # Legacy list/tuple form
+        if isinstance(section_or_prop, (list, tuple)) and len(section_or_prop) == 2 and option is None:
+            section, opt = section_or_prop
+            if ConfigParser.ConfigParser.has_option(self, section, opt):
+                ret = ConfigParser.ConfigParser.get(self, section, opt, raw=raw, vars=vars)
+            else:
+                ret = ''
+
+            if (len(ret) == 0) and (default is not None or fallback is not None):
+                # Prefer explicit default over fallback if both provided
+                ret = default if default is not None else fallback
+            return ret
+
+        # Standard style
+        section = section_or_prop
+        if option is None:
+            raise TypeError('Option name must be provided when not using legacy [section, option] form')
+        return ConfigParser.ConfigParser.get(self, section, option, raw=raw, vars=vars, fallback=fallback)
 
     def _getconv(self, prop, conv=None, default=None):
         if ConfigParser.ConfigParser.has_option(self, prop[0], prop[1]):
-            ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], False, None)
+            ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], raw=False)
         else:
             ret = ''
 

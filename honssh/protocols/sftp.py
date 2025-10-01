@@ -97,7 +97,11 @@ class SFTP(baseProtocol.BaseProtocol):
             self.parentPacket = self.clientPacket
 
         if self.parentPacket.packetSize == 0:
-            self.parentPacket.packetSize = int(payload[:4].encode('hex'), 16) - len(payload[4:])
+            if isinstance(payload, str):
+                first4 = payload[:4].encode('latin1')
+            else:
+                first4 = payload[:4]
+            self.parentPacket.packetSize = int.from_bytes(first4, 'big') - len(payload[4:])
             payload = payload[4:]
             self.parentPacket.data = payload
             payload = ''

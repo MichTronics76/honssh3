@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
@@ -32,7 +32,10 @@ from honssh.config import Config
 from honssh.utils import validation
 
 import json
-import urllib2
+try:
+    import urllib.request as urllib_request
+except ImportError:  # pragma: no cover
+    import urllib2 as urllib_request  # type: ignore
 
 
 class Plugin(object):
@@ -50,7 +53,8 @@ class Plugin(object):
                 fp = open(channel['ttylog_file'], 'rb')
                 ttydata = fp.read()
                 fp.close()
-                channel['ttylog'] = ttydata.encode('hex')
+                # ttydata is bytes; convert to hex string for JSON transport
+                channel['ttylog'] = ttydata.hex()
                 channel.pop('ttylog_file')
 
             for download in channel['downloads']:
@@ -61,11 +65,11 @@ class Plugin(object):
 
     def post_json(self, the_json):
         try:
-            req = urllib2.Request('https://honssh.com/testing/contribute.php')
+            req = urllib_request.Request('https://honssh.com/testing/contribute.php')
             req.add_header('Content-Type', 'application/json')
             req.add_header('User-Agent', 'HonSSH-Contribute')
             req.add_header('Accept', 'text/plain')
-            urllib2.urlopen(req, json.dumps(the_json))
+            urllib_request.urlopen(req, json.dumps(the_json).encode())  # type: ignore
         except Exception:
             pass
 

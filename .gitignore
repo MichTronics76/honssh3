@@ -11,3 +11,9 @@ honssh.pid
 .idea/
 *.iml
 *~
+venv/
+__pycache__/
+users.cfg
+honssh.cfg
+sessions/
+logs/

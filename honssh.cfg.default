@@ -1,5 +1,7 @@
 #
-# HonSSH configuration file (honssh.cfg)
+# HonSSH Default Configuration File (honssh-default.cfg)
+# 
+# Copy this file to honssh.cfg and modify the values as needed for your environment.
 #
 
 #----------------------------------------------#
@@ -15,7 +17,7 @@
 #
 # input: IP Address
 # required: YES
-ssh_addr = 
+ssh_addr = 0.0.0.0
 
 # Port to listen for incoming SSH connections.
 #
@@ -29,7 +31,7 @@ ssh_port = 2222
 #
 # input: IP Address
 # required: YES
-client_addr = 
+client_addr = 0.0.0.0
 
 # Public and private SSH key files. 
 #
@@ -76,20 +78,20 @@ post-auth = true
 #
 # input: Text
 # required: YES
-sensor_name = 
+sensor_name = HonSSH
 
 # IP addresses of the honeypot.
 #
 # input: IP Address
 # required: YES
-honey_ip = 
+honey_ip = 127.0.0.1
 
 # SSH port of the honeypot.
 #
 # input: Number
 # required: YES
 # default: 22
-honey_port = 
+honey_port = 22
 
 #-----------------------#
 #   HONEYPOT SCRIPT     #
@@ -104,17 +106,13 @@ pre-auth = false
 # Should HonSSH use this plugin to get the honeypot details (after authentication)
 post-auth = false
 
-# ./script IP LOCALIP PORT LOCALPORT
-pre-auth-script = 
-
-# ./script IP LOCALIP PORT LOCALPORT USERNAME PASSWORD
-post-auth-script = 
+# The Script to run.
+script = 
 
 #-----------------------#
 #   HONEYPOT DOCKER     #
 #-----------------------#
 [honeypot-docker]
-# Documentation to come
 enabled = false
 
 # Should HonSSH use this plugin to get the honeypot details (before authentication)
@@ -123,30 +121,49 @@ pre-auth = false
 # Should HonSSH use this plugin to get the honeypot details (after authentication)
 post-auth = false
 
-# image: image id/name to use for honeypot container
-# required: if enabled = true
-image = 
+# This name will be used when logging to any of the output mechanisms.
+# Please ensure it is meaningful.
+#
+# input: Text
+# required: YES
+sensor_name = HonSSH
 
-# uri: socket to interact with container daemon
-# required: if enabled = true
-# default: unix://var/run/docker.sock
-uri = unix://var/run/docker.sock
+# docker_image: the name of the docker image (without the tag)
+# 
+# input: Text
+# required: YES 
+docker_image = 
 
-# honey_hostname: the hostname for the container
-# required: if enabled = true
-hostname = test-box
+# docker_tag: the tag for the docker image
+#
+# input: Text
+# required: NO
+# default: latest
+docker_tag = latest
 
-# launch_cmd: command to run when container is first launched
-# required: if enabled = true
-# default = service ssh start
-launch_cmd = service ssh start
+# docker_host: The IP address of the system hosting the Docker daemon
+# Note: Do NOT use this unless you know what you are doing
+#
+# input: IP Address
+# required: NO
+# default: 127.0.0.1
+docker_host = 127.0.0.1
 
-# SSH port of the honeypot.
+# docker_port: The port of the Docker daemon
+# Note: Do NOT use this unless you know what you are doing
 #
 # input: Number
+# required: NO
+# default: 2375
+docker_port = 2375
+
+# use_docker_api: Connect to docker using Docker API instead of local commands
+# Note: Do NOT use this unless you know what you are doing
+#
+# input: true/false
 # required: YES
-# default: 22
-honey_port =
+# default: false
+use_docker_api = false
 
 # overlay_folder: Save all changes made to the docker container filesystem into given session
 # subdirectory. This includes changes made by the attacker and by the system itself!
@@ -198,55 +215,59 @@ reuse_container = false
 # reuse_container has to be activated.
 #
 # required = NO
-# default = 1440 (24 h)
-reuse_ttl =
+# default: 1440 (24 hours)
+reuse_ttl = 1440
 
-# reuse_ttl_check_interval: Defines in which interval the ttl should be checked.
-# The amount is measured in minutes.
+# launch_cmd: Overwrite start command for docker container
 #
-# required = NO
-# default = 30
-reuse_ttl_check_interval =
+# input: Text
+# required: NO
+launch_cmd = 
 
-# Pid limit of the honeypot (-1 for unlimited)
+# pre_cmd: Launch command within the docker container before the user connects. 
+# Useful for running any start-up scripts in the background.
+# You must surround the command in double quotes
+#
+# input: Text
+# required: NO
+pre_cmd = 
+
+# post_cmd: Launch command within the docker container after the user disconnects.
+# Useful for running any clean-up scripts.
+# You must surround the command in double quotes
+#
+# input: Text
+# required: NO
+post_cmd = 
+
+# hostname: Set the hostname of the container. 
+# If blank a random UUID will be used
+#
+# input: Text
+# required: NO
+hostname = 
+
+# honey_port_cmd: Override the port part of the honey_port.
+# Only necessary if there is no sshd running on your docker container
+# You must surround the command in double quotes
 # 
+# input: Text
+# required: NO
+honey_port_cmd = 
+
+# docker_memory: The memory available to the container - e.g 256M, 1024M
+#
+# input: Text
+# required: NO
+docker_memory = 
+
+# docker_cpu_shares: The number of CPU shares to allocate to the container
+#
 # input: Number
 # required: NO
-# default: -1
-pids_limit = 
+docker_cpu_shares = 
 
-# Memory limit of the honeypot
-# Example: 1G
-# 
-# required: NO
-mem_limit =
-
-# Swap limit of the honeypot
-# Example: 1G
-# 
-# required: NO
-memswap_limit =
-
-# Shm size limit of the honeypot
-# Example: 1G
-# 
-# required: NO
-shm_size =
-
-# Microseconds of CPU time that the container can get in a CPU period of the honeypot
-# 
-# input: Number
-# required: NO
-cpu_period =
-
-# CPU shares (relative weight) of the honeypot
-# Example: Percentage * value of cat /sys/fs/cgroup/cpu/docker/cpu.shares
-#
-# required: NO
-cpu_shares  =
-
-# CPUs in which to allow execution of the honeypot
-# Example: 0-3, 0,1
+# docker_cpuset_cpus: Which CPUs to use - e.g 0-2, 0,2
 # 
 # required: NO
 cpuset_cpus = 
@@ -301,41 +322,36 @@ disable_port_forwarding = true
 #-----------------------#
 [folders]
 
-# Directory where log files will be saved in.
+# Location of the logs
 #
 # input: Text
 # required: YES
 # default: logs
 log_path = logs
 
-# Directory where session files will be saved in.
+# Location of the TTY Logs
 #
 # input: Text
 # required: YES
-# default: sessions
+# default: logs/tty/
+tty_log_path = logs/tty/
+
+# Location to save downloaded files
+#
+# input: Text
+# required: YES
+# default: logs/downloads/
 session_path = sessions
 
-#-----------------------#
-#  ADVANCED NETWORKING  #
-#-----------------------#
-[advNet]
-
-# To enable this HonSSH must be ran as root or an account allowed to run 
-# iptables and ip link/addr commands.
+# Location to save downloaded files
 #
-# With this disabled, the honeypot will always see connections coming from
-# honey_addr. With this enabled, connections will look as if the connections
-# are coming from the attacker.
-# See the Wiki page for more details.
-# https://github.com/tnich/honssh/wiki/Advanced-Networking
-#
-# input: true/false
+# input: Text
 # required: YES
-# default: false
-enabled = false
+# default: logs/downloads/
+download_path = logs/downloads/
 
 #-----------------------#
-#    LIVE INTERACTION   #
+#     INTERACTIONS      #
 #-----------------------#
 [interact]
 
@@ -390,47 +406,15 @@ enabled = false
 # default: users.cfg
 users_conf = users.cfg
 
-#----------------------------------------------#
-#              LOGGING AND OUTPUTS             #
-#----------------------------------------------#
-
-#-----------------------#
-#    FILE DOWNLOADING   #
-#-----------------------#
-[download]
-
-# File Download
-#
-# HonSSH will attempt to download all scp and sftp files to a local store if this is true
-#
-# input: true/false
-# required: YES
-# default: false
-passive = false
-
-# HonSSH wil attempt to download all wget files to a local store.
-# 
-# I believe another tool should be used to passively capture all http(s) connections on all ports - maybe the next project?
-# Until then HonSSH will use a 'best effort' approach to capture files when the wget commands is detected.
-# It will not be able to capture commands such as:
-# url=www.test.url; wget $url
-# 
-# input: true/false
-# required: YES
-# default: false
-active = false
-
 #-----------------------#
 #      TEXT LOGGING     #
 #-----------------------#
 [output-txtlog]
 
 # All activity will be logged to text files
-# A log of entry attempts will be kept in log_path/
-# A log of session activity will be kept in session_path/
 #
 # input: true/false
-# required: YES
+# required: yes
 # default: true
 enabled = true
 
@@ -452,7 +436,7 @@ enabled = false
 # input: IP Address
 # required: if enabled = true
 # default: localhost
-host = 
+host = localhost
 
 # Port to connect to the database on
 #
@@ -484,53 +468,40 @@ password =
 #-----------------------#
 [output-email]
 
-# Enable email output plugin
+# All activity will be emailed
+# Event types:
+# login - log logins/attempted logins
+# attack - Log commands entered on the honeypot
 #
-# dependency: txtlog MUST be enabled
 # input: true/false
 # required: YES
 # default: false
 enabled = false
 
-# Send an email upon hacker connect
+# Event types to alert on. (login, attack)
 #
-# dependency: txtlog MUST be enabled
-# input: true/false
-# required: YES
-# default: false
-login = false
+# input: text
+# required: if enabled = true
+# default: login,attack
+events = login,attack
 
-# Send an email upon hacker disconnect - Will attach the tty log file
+# Your SMTP settings to send the email through
 #
-# dependency: txtlog MUST be enabled
-# input: true/false
-# required: YES
-# default: false
-attack = false
-
-# Your SMTP Host
-#
-# input: Text
-# required: if login or attack = true
+# input: IP Address/URL
+# required: if enabled = true
 host = 
 
-# Your SMTP Port
+# Port for SMTP connection
 #
 # input: Number
-# required: if login or attack = true
-port = 
+# required: NO
+# default: 25
+port = 25
 
-# Use SSL/TLS to connect to the SMTP provider?
+# Whether to use SMTP authentication
 #
 # input: true/false
-# required: if login or attack = true
-# default: true
-use_tls = true
-
-# Does your SMTP provider require a login?
-#
-# input: true/false
-# required: if login or attack = true
+# required: YES
 # default: true
 use_smtpauth = true
 
@@ -538,7 +509,7 @@ use_smtpauth = true
 #
 # input: Text
 # required: if use_smtpauth = true
-username =  
+username = 
 
 # Your SMTP login password
 #
@@ -583,104 +554,44 @@ server =
 #
 # input: Number
 # required: if enabled = true
-port = 
+port = 20000
 
-# Your hpfeed authe key identifier
+# Your hpfeeds authentication identity
 #
 # input: Text
 # required: if enabled = true
 identifier = 
 
-# Your hpfeed authe key secret
+# Your hpfeeds authentication secret
 #
 # input: Text
 # required: if enabled = true
 secret = 
 
 #-----------------------#
-#   APPLICATION HOOKS   #
+#         APP HOOKS     #
 #-----------------------#
 [output-app_hooks]
 
-# Enable app_hooks output plugin
+# This plugin allows you to script your own output commands
 #
 # input: true/false
 # required: YES
 # default: false
 enabled = false
 
-# If you want any other application hooks or arguments passing, raise an issue
-# on the HonSSH code page. 
-
-# Calls the script when a connection is made with the following arguments
-# ./script CONNECTION_MADE DATETIME IP PORT HONEYIP HONEYPORT SESSION_ID
+# The path to the command to run
 #
-# input: path of script to run
-# required: NO
-connection_made = 
+# input: Text
+# required: if enabled = true
+command_path = 
 
-# Calls the script when a connection is lost with the following arguments
-# ./script CONNECTION_LOST DATETIME IP PORT HONEYIP HONEYPORT SESSION_ID
+# The arguments to pass to the command
+# use %s for all the arguments passed by the honeypot
 #
-# input: path of script to run
-# required: NO
-connection_lost = 
-
-# Calls the script when a login is successful with the following arguments
-# ./script LOGIN_SUCCESSFUL DATETIME IP USERNAME PASSWORD
-#
-# input: path of script to run
-# required: NO
-login_successful = 
-
-# Calls the script when a login has failed with the following arguments
-# ./script LOGIN_FAILED DATETIME IP USERNAME PASSWORD
-#
-# input: path of script to run
-# required: NO
-login_failed = 
-
-# Calls the script when a channel is opened with the following arguments
-# ./script CHANNEL_OPENED DATETIME NAME CHANNEL_ID
-#
-# input: path of script to run
-# required: NO
-channel_opened = 
-
-# Calls the script when a channel is closed with the following arguments
-# ./script CHANNEL_CLOSED DATETIME NAME CHANNEL_ID
-#
-# input: path of script to run
-# required: NO
-channel_closed =
-
-# Calls the script when a command is entered with the following arguments
-# ./script COMMAND_ENTERED DATETIME CHANNEL_ID COMMAND
-#
-# input: path of script to run
-# required: NO
-command_entered = 
-
-# Calls the script when a file download is started with the following arguments
-# ./script DOWNLOAD_STARTED DATETIME CHANNEL_ID LINK FILE_PATH
-#
-# input: path of script to run
-# required: NO
-download_started = 
-
-# Calls the script when a file download is finished with the following arguments
-# ./script DOWNLOAD_FININSHED DATETIME CHANNEL_ID LINK FILE_PATH
-#
-# input: path of script to run
-# required: NO
-download_finished = 
-
-# Calls the script when a ttylog file is closed with the following arguments
-# ./script TTYLOG_CLOSED SENSOR_NAME TTYLOG_FILE
-#
-# input: path of script to run
-# required: NO
-ttylog_closed = 
+# input: Text
+# required: if enabled = true
+command_args = 
 
 #-----------------------#
 #     PACKET LOGGING    #

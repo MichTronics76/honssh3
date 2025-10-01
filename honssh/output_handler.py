@@ -40,9 +40,38 @@ import uuid
 import getopt
 import hashlib
 import socket
-import urllib2
-import base64
-import GeoIP
+# urllib handled dynamically with urllib.request inside download_file for Py3 compatibility
+"""GeoIP loading strategy:
+1. Try legacy GeoIP C API (python-geoip) -> GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
+2. Fallback to pygeoip (pure python) if installed, probing common database locations
+3. If neither available or no database found, country lookup returns '' silently (once logs a notice)
+"""
+_geoip_obj = None
+_geoip_notice_logged = False
+try:  # Legacy binding
+    import GeoIP as _legacy_geoip  # type: ignore
+    try:
+        _geoip_obj = _legacy_geoip.new(_legacy_geoip.GEOIP_MEMORY_CACHE)
+    except Exception:  # pragma: no cover
+        _geoip_obj = None
+except ImportError:  # pragma: no cover
+    _legacy_geoip = None
+    try:
+        import pygeoip  # type: ignore
+        _GEOIP_PATH_CANDIDATES = [
+            '/usr/share/GeoIP/GeoIP.dat',
+            '/usr/local/share/GeoIP/GeoIP.dat',
+            '/usr/share/geoip/GeoIP.dat'
+        ]
+        for _p in _GEOIP_PATH_CANDIDATES:
+            if os.path.exists(_p):
+                try:
+                    _geoip_obj = pygeoip.GeoIP(_p)
+                    break
+                except Exception:
+                    pass
+    except ImportError:
+        pass
 
 
 class Output(object):
@@ -59,6 +88,8 @@ class Output(object):
         self.session_id = None
         self.logLocation = None
         self.downloadFolder = None
+        # Buffer early handshake packets if packet logging enabled but session not initialised yet
+        self._early_packets = []
 
     def connection_made(self, end_ip, end_port, honey_ip, honey_port, sensor_name):
         plugin_list = plugins.get_plugin_list(plugin_type='output')
@@ -89,6 +120,12 @@ class Output(object):
         session = self.connections.add_session(self.sensor_name, self.end_ip, self.end_port, dt, self.honey_ip,
                                                self.honey_port, self.session_id, self.logLocation, country)
         plugins.run_plugins_function(self.loaded_plugins, 'connection_made', True, session)
+
+        # Flush any early buffered packets (e.g. KEX, SERVICE_REQUEST) captured before session init
+        if self._early_packets:
+            for ep in self._early_packets:
+                self._log_packet(*ep)
+            self._early_packets.clear()
 
     def connection_lost(self):
         log.msg(log.LRED, '[OUTPUT]', 'Lost Connection with the attacker: %s' % self.end_ip)
@@ -195,7 +232,8 @@ class Output(object):
         filename = dt + "-" + link.split("/")[-1]
         file_out = self.downloadFolder + filename
 
-        if not link.startswith('http://') or not link.startswith('https://'):
+        # Only prepend a default scheme if the link lacks any known scheme
+        if not (link.startswith('http://') or link.startswith('https://') or link.startswith('ftp://')):
             link = 'http://' + link
 
         d = threads.deferToThread(self.download_file, channel_id, link, file_out, user, password)
@@ -249,27 +287,54 @@ class Output(object):
 
     def packet_logged(self, direction, packet, payload):
         if self.cfg.getboolean(['packet_logging', 'enabled']):
+            # If session not yet initialised, buffer instead of erroring on None logLocation
+            if not self.session_id or not self.logLocation:
+                self._early_packets.append((direction, packet, payload))
+                return
+            self._log_packet(direction, packet, payload)
+
+    def _log_packet(self, direction, packet, payload):
+        try:
             dt = self.get_date_time()
             self.make_session_folder()
             sensor, session = self.connections.get_session(self.session_id)
+            if not sensor or not session:
+                return
             session_copy = self.connections.return_session(sensor, session)
             session_copy['session']['packet'] = {'date_time': dt, 'direction': direction, 'packet': packet,
                                                  'payload': payload}
             plugins.run_plugins_function(self.loaded_plugins, 'packet_logged', True, session_copy)
+        except Exception as ex:
+            try:
+                log.msg(log.LRED, '[OUTPUT]', f'Error logging packet: {ex}')
+            except Exception:
+                pass
 
     def open_tty(self, uuid, ttylog_file):
         self.connections.add_ttylog_file(uuid, ttylog_file)
         ttylog.ttylog_open(ttylog_file, time.time())
 
     def input_tty(self, ttylog_file, data):
-
-        ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_INPUT, time.time(), data)
+        if isinstance(data, str):
+            # Preserve 1:1 byte values using latin1
+            data_bytes = data.encode('latin1', 'ignore')
+        else:
+            data_bytes = data
+        ttylog.ttylog_write(ttylog_file, len(data_bytes), ttylog.TYPE_INPUT, time.time(), data_bytes)
 
     def output_tty(self, ttylog_file, data):
-        ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+        if isinstance(data, str):
+            data_bytes = data.encode('latin1', 'ignore')
+        else:
+            data_bytes = data
+        ttylog.ttylog_write(ttylog_file, len(data_bytes), ttylog.TYPE_OUTPUT, time.time(), data_bytes)
 
     def interact_tty(self, ttylog_file, data):
-        ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_INTERACT, time.time(), data)
+        if isinstance(data, str):
+            data_bytes = data.encode('latin1', 'ignore')
+        else:
+            data_bytes = data
+        ttylog.ttylog_write(ttylog_file, len(data_bytes), ttylog.TYPE_INTERACT, time.time(), data_bytes)
 
     def close_tty(self, ttylog_file):
         ttylog.ttylog_close(ttylog_file, time.time())
@@ -296,18 +361,18 @@ class Output(object):
     def make_session_folder(self):
         if not os.path.exists(self.logLocation):
             os.makedirs(self.logLocation)
-            os.chmod(self.logLocation, 0755)
-            os.chmod('/'.join(self.logLocation.split('/')[:-2]), 0755)
+            os.chmod(self.logLocation, 0o755)
+            os.chmod('/'.join(self.logLocation.split('/')[:-2]), 0o755)
 
     def make_downloads_folder(self):
         if not os.path.exists(self.downloadFolder):
             os.makedirs(self.downloadFolder)
-            os.chmod(self.downloadFolder, 0755)
+            os.chmod(self.downloadFolder, 0o755)
 
     def get_file_meta(self, download):
         channel_id, success, link, the_file, error = download
         if success:
-            f = file(the_file, 'rb')
+            f = open(the_file, 'rb')
             sha256 = hashlib.sha256()
             while True:
                 data = f.read(2 ** 20)
@@ -326,17 +391,40 @@ class Output(object):
         response = False
         error = ''
         try:
-            request = urllib2.Request(link)
+            try:
+                import urllib.request as urllib_request
+            except ImportError:  # pragma: no cover
+                import urllib2 as urllib_request  # type: ignore
+            # Sanitize malformed links like 'http://https://example.com' or 'https://http://'
+            if link.startswith('http://https://'):
+                fixed = 'https://' + link[len('http://https://'):]
+                log.msg(log.LYELLOW, '[OUTPUT]', f'Corrected malformed URL {link} -> {fixed}')
+                link = fixed
+            elif link.startswith('https://http://'):
+                fixed = 'http://' + link[len('https://http://'):]
+                log.msg(log.LYELLOW, '[OUTPUT]', f'Corrected malformed URL {link} -> {fixed}')
+                link = fixed
+            request = urllib_request.Request(link)
             request.add_header('Accept', 'text/plain')
+            ua_cfg = ''
+            try:
+                if self.cfg.has_option('download', 'user_agent'):
+                    ua_cfg = self.cfg.get(['download', 'user_agent'])
+            except Exception:
+                pass
+            if not ua_cfg:
+                ua_cfg = 'Wget/1.21.1'
+            request.add_header('User-Agent', ua_cfg)
             if user and password:
                 if link.startswith('ftp://'):
                     link = link[:6] + user + ':' + password + '@' + link[6:]
-                    request = urllib2.Request(link)
+                    request = urllib_request.Request(link)
                 else:
-                    base64string = base64.encodestring('%s:%s' % (user, password)).replace('\n', '')
+                    import base64 as _b64
+                    base64string = _b64.b64encode(('%s:%s' % (user, password)).encode()).decode()
                     request.add_header("Authorization", "Basic %s" % base64string)
-            response = urllib2.urlopen(request)
-        except Exception, ex:
+            response = urllib_request.urlopen(request)  # type: ignore
+        except Exception as ex:
             error = str(ex)
 
         if response:
@@ -358,6 +446,16 @@ class Output(object):
     def cname(self, ipv4_str):  # Thanks Are.
         """Checks the ipv4_str against the GeoIP database. Returns the full country name of origin if 
         the IPv4 address is found in the database. Returns None if not found."""
-        geo = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
-        country = geo.country_name_by_addr(ipv4_str)
-        return country
+        global _geoip_notice_logged
+        if not _geoip_obj:
+            if not _geoip_notice_logged:
+                log.msg(log.LYELLOW, '[OUTPUT]', 'GeoIP support not available - country lookups disabled')
+                _geoip_notice_logged = True
+            return ''
+        try:
+            # Legacy API
+            if hasattr(_geoip_obj, 'country_name_by_addr'):
+                return _geoip_obj.country_name_by_addr(ipv4_str) or ''
+        except Exception:
+            return ''
+        return ''

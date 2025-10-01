@@ -79,21 +79,35 @@ class HonsshClientFactory(protocol.ClientFactory):
 
 class HonsshSlimClientTransport(transport.SSHClientTransport):
     gotVersion = False
+    buf = b''
 
     def dataReceived(self, data):
-        self.buf = self.buf + data
+        # data arrives as bytes in Python 3
+        if isinstance(data, str):  # defensive: ensure bytes
+            data = data.encode()
+        self.buf += data
         if not self.gotVersion:
-            if self.buf.find('\n', self.buf.find('SSH-')) == -1:
+            # Look for a complete line containing the SSH banner
+            # Convert to bytes patterns
+            idx = self.buf.find(b'SSH-')
+            if idx == -1:
                 return
-
-            lines = self.buf.split('\n')
+            nl = self.buf.find(b'\n', idx)
+            if nl == -1:
+                return  # wait for full line
+            lines = self.buf.split(b'\n')
             for p in lines:
-                if p.startswith('SSH-'):
+                if p.startswith(b'SSH-'):
+                    try:
+                        decoded = p.decode(errors='ignore').strip()
+                    except Exception:
+                        decoded = 'SSH-UNKNOWN'
                     self.gotVersion = True
-                    self.ourVersionString = p.strip()
+                    self.ourVersionString = decoded
                     self.factory.server.ourVersionString = self.ourVersionString
                     log.msg(log.LBLUE, '[CLIENT]', 'Got SSH Version String: ' + self.factory.server.ourVersionString)
                     self.loseConnection()
+                    break
 
 
 class HonsshSlimClientFactory(protocol.ClientFactory):
