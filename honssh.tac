@@ -120,12 +120,10 @@ serverFactory.publicKeys = {
 Start up server
 '''
 ssh_port_prop = ['honeypot', 'ssh_port']
-if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
-    reactor.listenTCP(cfg.getint(ssh_port_prop), serverFactory, interface=ssh_addr)
-else:
-    application = service.Application('honeypot')
-    service = internet.TCPServer(cfg.getint(ssh_port_prop), serverFactory, interface=ssh_addr)
-    service.setServiceParent(application)
+# Always create the application object for twistd compatibility
+application = service.Application('honeypot')
+ssh_service = internet.TCPServer(cfg.getint(ssh_port_prop), serverFactory, interface=ssh_addr)
+ssh_service.setServiceParent(application)
 
 '''
 Start interaction server if enabled
@@ -133,14 +131,10 @@ Start interaction server if enabled
 if cfg.getboolean(['interact', 'enabled']):
     interact_interface_prop = ['interact', 'interface']
     iport = cfg.getint(['interact', 'port'])
+    
+    # Always add to application for twistd compatibility
+    interact_service = internet.TCPServer(iport, interact.make_interact_factory(serverFactory),
+                                         interface=cfg.get(interact_interface_prop))
+    interact_service.setServiceParent(application)
 
-    if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
-        reactor.listenTCP(iport, interact.make_interact_factory(serverFactory),
-                          interface=cfg.get(interact_interface_prop))
-    else:
-        service = internet.TCPServer(iport, interact.make_interact_factory(serverFactory),
-                                     interface=cfg.get(interact_interface_prop))
-        service.setServiceParent(application)
-
-if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
-    reactor.run()
+# Remove the reactor.run() call as twistd will handle the reactor

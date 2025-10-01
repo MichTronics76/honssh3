@@ -162,7 +162,7 @@ class SSH(baseProtocol.BaseProtocol):
                 self.password = self.extract_string()
                 # Debug credential capture (option 1) - log immediately when password auth attempt parsed
                 try:
-                    log.msg(log.LCYAN, '[AUTH][DEBUG]', f'Captured credential attempt username="{self.username}" password="{self.password}" auth_type=password')
+                    log.msg(log.LCYAN, '[SSH][AUTH]', f'Captured credential attempt username="{log.LYELLOW + self.username}{log.LCYAN}" password="{log.LYELLOW + self.password}{log.LCYAN}" auth_type=password')
                 except Exception:
                     pass
                 # In pass-through mode do not start post-auth redirection; let backend decide.
