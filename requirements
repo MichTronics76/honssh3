@@ -1,8 +1,9 @@
-python-3.6+
-python3-twisted
-python3-mysqldb
-python3-geoip
-python3-watchdog
+twisted
+mysqlclient
+geoip
+watchdog
+bcrypt
+cryptography
 
 # If you require docker support:
 docker
