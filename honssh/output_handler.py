@@ -308,10 +308,11 @@ class Output(object):
             session_copy['session']['packet'] = {'date_time': dt, 'direction': direction, 'packet': packet,
                                                  'payload': payload}
             plugins.run_plugins_function(self.loaded_plugins, 'packet_logged', True, session_copy)
-        except Exception as ex:
+        except (KeyError, AttributeError, TypeError) as ex:
             try:
                 log.msg(log.LRED, '[OUTPUT]', f'Error logging packet: {ex}')
-            except Exception:
+            except (AttributeError, ImportError):
+                # If logging fails, silently continue
                 pass
 
     def open_tty(self, uuid, ttylog_file):
@@ -347,18 +348,16 @@ class Output(object):
         the_dns = ''
         try:
             the_dns = ' (' + socket.gethostbyaddr(conn_details['srcIP'])[0] + ')'
-        except:
-            pass
-        # TODO: LOG SOMEWHERE
+        except (socket.herror, socket.gaierror, OSError) as e:
+            log.msg(log.LBLUE, '[OUTPUT]', 'DNS lookup failed for %s: %s' % (conn_details['srcIP'], str(e)))
         log.msg(log.LPURPLE, '[OUTPUT]',
                 channel_name + ' Source: ' + conn_details['srcIP'] + ':' + str(conn_details['srcPort']) + the_dns)
 
         the_dns = ''
         try:
             the_dns = ' (' + socket.gethostbyaddr(conn_details['dstIP'])[0] + ')'
-        except:
-            pass
-        # TODO: LOG SOMEWHERE
+        except (socket.herror, socket.gaierror, OSError) as e:
+            log.msg(log.LBLUE, '[OUTPUT]', 'DNS lookup failed for %s: %s' % (conn_details['dstIP'], str(e)))
         log.msg(log.LPURPLE, '[OUTPUT]',
                 channel_name + ' Destination: ' + conn_details['dstIP'] + ':' + str(conn_details['dstPort']) + the_dns)
 
@@ -411,8 +410,8 @@ class Output(object):
             try:
                 if self.cfg.has_option('download', 'user_agent'):
                     ua_cfg = self.cfg.get(['download', 'user_agent'])
-            except Exception:
-                pass
+            except (AttributeError, KeyError):
+                log.msg(log.LBLUE, '[OUTPUT]', 'Failed to get user_agent config, using default')
             if not ua_cfg:
                 ua_cfg = 'Wget/1.21.1'
             request.add_header('User-Agent', ua_cfg)
@@ -425,8 +424,9 @@ class Output(object):
                     base64string = _b64.b64encode(('%s:%s' % (user, password)).encode()).decode()
                     request.add_header("Authorization", "Basic %s" % base64string)
             response = urllib.request.urlopen(request)  # type: ignore
-        except Exception as ex:
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as ex:
             error = str(ex)
+            log.msg(log.LRED, '[OUTPUT]', f'Failed to download file from {link}: {error}')
 
         if response:
             the_file = response.read()
@@ -457,6 +457,7 @@ class Output(object):
             # Legacy API
             if hasattr(_geoip_obj, 'country_name_by_addr'):
                 return _geoip_obj.country_name_by_addr(ipv4_str) or ''
-        except Exception:
+        except (ValueError, TypeError, AttributeError):
+            # Invalid IP or GeoIP lookup error
             return ''
         return ''

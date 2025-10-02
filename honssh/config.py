@@ -167,7 +167,9 @@ class Config(ConfigParser.ConfigParser):
         elif len(ret) > 0 and conv is not None:
             try:
                 ret = conv(ret)
-            except:
+            except (ValueError, TypeError) as e:
+                from honssh import log
+                log.msg(log.LYELLOW, '[CONFIG]', 'Failed to convert config value: %s' % str(e))
                 pass
 
         return ret

@@ -114,10 +114,13 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
                 if not return_value:
                     return return_value
         except AttributeError:
+            # Plugin doesn't implement this method - this is normal and expected
+            # Many plugins only implement a subset of available hooks
             pass
-        except Exception as ex:
-            pass
-            #log.msg(log.LRED, '[PLUGIN][' + class_name + '][ERR]', str(ex))
+        except (TypeError, ValueError) as ex:
+            # Actual execution errors should be logged
+            from honssh import log
+            log.msg(log.LRED, '[PLUGIN][ERR]', f'Plugin {class_name} execution error in {function}: {ex}')
 
     return return_value
 

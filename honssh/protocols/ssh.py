@@ -98,8 +98,9 @@ class SSH(baseProtocol.BaseProtocol):
 
         try:
             packet = self.packetLayout[message_num]
-        except:
+        except KeyError:
             packet = 'UNKNOWN_%s' % message_num
+            log.msg(log.LYELLOW, '[SSH]', 'Unknown SSH message number: %d' % message_num)
 
         if packet == 'SSH_MSG_NEWKEYS':
             # Next packet from this side may legally be EXT_INFO; mark allowed
@@ -114,19 +115,21 @@ class SSH(baseProtocol.BaseProtocol):
             allow_cfg = False
             try:
                 allow_cfg = self.cfg.getboolean(['scan', 'allow_ext_info'])
-            except Exception:
+            except (AttributeError, KeyError):
                 allow_cfg = False
             if not allow_cfg or not self._ext_info_allowed.get(parent, False):
                 try:
                     log.msg(log.LYELLOW, '[SSH]', 'Dropping SSH_MSG_EXT_INFO (ordering or config)')
-                except Exception:
+                except (AttributeError, ImportError):
+                    # Logging not available yet
                     pass
                 self.sendOn = False
                 return
             else:
                 try:
                     log.msg(log.LCYAN, '[SSH]', 'Forwarding SSH_MSG_EXT_INFO (allowed by config & ordering)')
-                except Exception:
+                except (AttributeError, ImportError):
+                    # Logging not available yet
                     pass
             # After using the allowance, clear it so only one EXT_INFO is accepted per NEWKEYS.
             self._ext_info_allowed[parent] = False
@@ -163,7 +166,8 @@ class SSH(baseProtocol.BaseProtocol):
                 # Debug credential capture (option 1) - log immediately when password auth attempt parsed
                 try:
                     log.msg(log.LCYAN, '[SSH][AUTH]', f'Captured credential attempt username="{log.LYELLOW + self.username}{log.LCYAN}" password="{log.LYELLOW + self.password}{log.LCYAN}" auth_type=password')
-                except Exception:
+                except (AttributeError, ImportError):
+                    # If logging fails during initialization, continue
                     pass
                 # In pass-through mode do not start post-auth redirection; let backend decide.
 

@@ -45,7 +45,8 @@ class Interact(protocol.Protocol):
         if isinstance(data, bytes):
             try:
                 data = data.decode(errors='ignore')
-            except Exception:
+            except (UnicodeDecodeError, AttributeError):
+                log.msg(log.LYELLOW, '[INTERACT]', 'Failed to decode received data')
                 data = ''
         datagrams = data.split('_')
         total = len(datagrams) // 3
@@ -74,11 +75,11 @@ class Interact(protocol.Protocol):
                 preview_src = '<omitted large payload>'
             preview = json.dumps(preview_src)[:300]
             log.msg(log.LBLUE, '[INTERACT][DEBUG]', 'Sending response preview: ' + preview)
-        except Exception as ex:
+        except (TypeError, ValueError, json.JSONDecodeError) as ex:
             err = {'msg': f'ERROR: Serialization failed: {ex.__class__.__name__}: {ex}'}
             try:
                 payload = json.dumps(err).encode()
-            except Exception:
+            except (TypeError, ValueError):
                 # Last resort minimal JSON
                 payload = b'{"msg":"ERROR: Serialization failed"}'
             log.msg(log.LRED, '[INTERACT][ERROR]', 'Failed to serialize response – sending error object')
@@ -98,7 +99,8 @@ class Interact(protocol.Protocol):
         try:
             raw = base64.b64decode(theData)
             return json.loads(raw.decode(errors='replace'))
-        except Exception:
+        except (ValueError, json.JSONDecodeError, TypeError):
+            log.msg(log.LYELLOW, '[INTERACT]', 'Failed to decode malformed packet')
             return {'msg': 'ERROR: Malformed packet'}
 
     def parsePacket(self, theData):
@@ -111,8 +113,8 @@ class Interact(protocol.Protocol):
                     try:
                         log.msg(log.LBLUE, '[INTERACT][DEBUG]', 'List request: sensors=%s session_counts=%s' % (
                             len(raw_list), [len(s.get('sessions', [])) for s in raw_list]))
-                    except Exception:
-                        pass
+                    except (KeyError, TypeError, AttributeError):
+                        log.msg(log.LYELLOW, '[INTERACT]', 'Failed to log list request debug info')
                     safe_list = []
                     for sensor in raw_list:
                         safe_sensor = {

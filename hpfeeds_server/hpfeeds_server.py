@@ -109,8 +109,8 @@ class hpclient(object):
         self.s.settimeout(3)
         try:
             self.s.connect((self.server, self.port))
-        except:
-            log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpfeeds client could not connect to broker.')
+        except (socket.error, socket.timeout, OSError) as e:
+            log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpfeeds client could not connect to broker: %s' % str(e))
             self.s = None
         else:
             self.s.settimeout(None)

@@ -78,9 +78,9 @@ class DockerDriver(object):
                 log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Reusing container %s ' % self.container_id)
                 # Restart container
                 self.connection.restart(self.container_id)
-            except:
+            except (KeyError, Exception) as e:
+                log.msg(log.LYELLOW, '[PLUGIN][DOCKER]', 'Failed to reuse container: %s' % str(e))
                 self.container_id = None
-                pass
 
         if self.container_id is None:
             host_config = self.connection.create_host_config(pids_limit=self.pids_limit, mem_limit=self.mem_limit,

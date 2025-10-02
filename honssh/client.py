@@ -100,7 +100,8 @@ class HonsshSlimClientTransport(transport.SSHClientTransport):
                 if p.startswith(b'SSH-'):
                     try:
                         decoded = p.decode(errors='ignore').strip()
-                    except Exception:
+                    except (UnicodeDecodeError, AttributeError):
+                        log.msg(log.LYELLOW, '[CLIENT]', 'Failed to decode SSH version string')
                         decoded = 'SSH-UNKNOWN'
                     self.gotVersion = True
                     self.ourVersionString = decoded

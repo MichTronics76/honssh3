@@ -80,10 +80,10 @@ class BaseProtocol(object):
         # Try UTF-8 decode; fallback to latin1 to preserve bytes
         try:
             return raw.decode('utf-8')
-        except Exception:
+        except UnicodeDecodeError:
             try:
                 return raw.decode('latin1')
-            except Exception:
+            except UnicodeDecodeError:
                 # Final fallback: repr of bytes
                 return repr(raw)
 

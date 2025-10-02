@@ -112,8 +112,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
     def connectionLost(self, reason):
         try:
             self.client.loseConnection()
-        except:
-            pass
+        except (AttributeError, RuntimeError) as e:
+            log.msg(log.LYELLOW, '[SERVER]', 'Error closing client connection: %s' % str(e))
         honsshServer.HonsshServer.connectionLost(self, reason)
 
         if self.wasConnected:
@@ -128,7 +128,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
             if 'Cannot send KEXINIT' in str(e):
                 try:
                     log.msg(log.LYELLOW, '[SSH]', 'Ignoring duplicate KEXINIT while key exchange progressing')
-                except Exception:
+                except (AttributeError, ImportError):
+                    # If logging fails, just continue silently
                     pass
                 return
             raise
@@ -179,8 +180,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         if version:
             try:
                 self.out.set_version(version)
-            except Exception:
-                pass
+            except (AttributeError, ValueError) as e:
+                log.msg(log.LYELLOW, '[SERVER]', 'Failed to set version: %s' % str(e))
             return
         if remaining > 0:
             from twisted.internet import reactor as _reactor

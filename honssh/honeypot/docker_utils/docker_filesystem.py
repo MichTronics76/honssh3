@@ -88,8 +88,8 @@ class DockerFileSystemEventHandler(FileSystemEventHandler):
                 try:
                     # Create directory tree
                     os.makedirs('%s%s' % (self.overlay_folder, file.dirname().replace(self.mount_dir, '')))
-                except:
-                    # Ignore exception
+                except (OSError, FileExistsError) as e:
+                    # Directory may already exist, which is fine
                     pass
 
                 try:

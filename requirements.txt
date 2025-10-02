@@ -1,0 +1,113 @@
+# HonSSH3 - Python 3 SSH Honeypot
+# Requirements file with pinned versions for reproducible builds
+# Tested with Python 3.12.3 on Ubuntu/Debian systems
+# Last updated: 2025-10-02
+
+# ========================================
+# Core Dependencies - REQUIRED
+# ========================================
+
+# Twisted - Asynchronous networking framework (core dependency for SSH handling)
+# Note: Version 25.x introduces some deprecation warnings for TripleDES
+Twisted==25.5.0
+
+# MySQL database client for Python 3
+# Required for MySQL output plugin
+# Note: Requires libmysqlclient-dev on Debian/Ubuntu
+mysqlclient==2.2.7
+
+# Legacy GeoIP C binding for IP geolocation
+# Note: This library is deprecated but provides better performance
+# Fallback: pygeoip (pure Python) if this fails to install
+GeoIP==1.3.2
+
+# File system event monitoring
+# Used for watching log files and session recordings
+watchdog==6.0.0
+
+# Password hashing library
+# Used for secure password handling
+bcrypt==5.0.0
+
+# Cryptographic library (required by Twisted for SSH)
+# Note: Version 46.x has moved TripleDES to decrepit module
+cryptography==46.0.2
+
+# ========================================
+# Optional Dependencies
+# ========================================
+
+# Docker support - OPTIONAL (only if using Docker honeypot plugin)
+# Uncomment these lines if you need Docker integration:
+# docker==7.1.0
+# docker-py==1.10.6
+
+# Alternative GeoIP library - OPTIONAL
+# Pure Python implementation, no C dependencies
+# Uncomment if you cannot install GeoIP C library:
+# pygeoip==0.3.2
+
+# ========================================
+# System Dependencies (not pip-installable)
+# ========================================
+# These must be installed via your system package manager:
+#
+# Debian/Ubuntu:
+#   sudo apt-get install python3-dev libmysqlclient-dev build-essential
+#   sudo apt-get install geoip-database geoip-database-extra  # For GeoIP
+#
+# RedHat/CentOS:
+#   sudo yum install python3-devel mysql-devel gcc
+#   sudo yum install GeoIP GeoIP-data
+#
+# ========================================
+# Development Dependencies (Optional)
+# ========================================
+# Uncomment these if you're doing development work:
+#
+# Sphinx>=7.0.0              # Documentation generation
+# pytest>=8.0.0              # Testing framework
+# pytest-twisted>=1.14.0     # Twisted integration for pytest
+# black>=24.0.0              # Code formatting
+# flake8>=7.0.0              # Code linting
+# mypy>=1.0.0                # Type checking
+
+# ========================================
+# Installation Notes
+# ========================================
+# 1. Create virtual environment:
+#    python3 -m venv venv
+#
+# 2. Activate virtual environment:
+#    source venv/bin/activate  # Linux/Mac
+#    venv\Scripts\activate     # Windows
+#
+# 3. Install requirements:
+#    pip install -r requirements.txt
+#
+# 4. If GeoIP fails to install:
+#    - Comment out GeoIP==1.3.2
+#    - Uncomment pygeoip==0.3.2
+#    - Run: pip install -r requirements.txt
+#
+# 5. For Docker support:
+#    - Uncomment docker and docker-py lines above
+#    - Run: pip install -r requirements.txt
+#
+# ========================================
+# Known Issues & Compatibility
+# ========================================
+# - cryptography 46.x shows deprecation warnings for TripleDES
+#   This is expected and doesn't affect functionality
+#   TripleDES support will be removed in cryptography 48.0.0
+#
+# - docker and docker-py can conflict
+#   Use only one: prefer 'docker' (newer) over 'docker-py' (legacy)
+#   docker-py is included for backward compatibility
+#
+# - GeoIP C library may not be available on all systems
+#   Fallback to pygeoip is automatic if GeoIP import fails
+#
+# - mysqlclient requires MySQL development headers
+#   Install mysql-devel (RHEL) or libmysqlclient-dev (Debian)
+#   before pip install
