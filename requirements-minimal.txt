@@ -1,0 +1,24 @@
+# HonSSH3 Minimal Requirements
+# Core dependencies only - no MySQL, no Docker, no GeoIP
+# Use this if you only need basic honeypot functionality
+
+# Twisted - Core SSH handling (REQUIRED)
+Twisted==25.5.0
+
+# File system monitoring (REQUIRED)
+watchdog==6.0.0
+
+# Password hashing (REQUIRED)
+bcrypt==5.0.0
+
+# Cryptography for SSH (REQUIRED)
+cryptography==46.0.2
+
+# Installation:
+#   pip install -r requirements-minimal.txt
+#
+# Note: This minimal install will:
+#   - Skip MySQL output plugin (no database logging)
+#   - Skip GeoIP lookups (no country information)
+#   - Skip Docker honeypot support
+#   - Text file logging will still work
