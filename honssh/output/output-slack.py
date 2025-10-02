@@ -32,10 +32,7 @@ from honssh.config import Config
 from honssh.utils import validation
 
 import json
-try:
-    import urllib.request as urllib_request
-except ImportError:  # pragma: no cover
-    import urllib2 as urllib_request  # type: ignore
+import urllib.request
 
 
 class Plugin(object):
@@ -143,11 +140,11 @@ class Plugin(object):
         the_json = {'username': sensor['sensor_name'] + ' - (' + sensor['honey_ip'] + ':' + sensor['honey_port'] + ')',
                     'attachments': attach}
 
-    req = urllib_request.Request(self.cfg.get(['output-slack', 'webhook-url']))
+    req = urllib.request.Request(self.cfg.get(['output-slack', 'webhook-url']))
     req.add_header('Content-Type', 'application/json')
     req.add_header('User-Agent', 'HonSSH-Contribute')
     req.add_header('Accept', 'text/plain')
-    urllib_request.urlopen(req, json.dumps(the_json).encode())  # type: ignore
+    urllib.request.urlopen(req, json.dumps(the_json).encode())  # type: ignore
         # log.msg(log.LPURPLE, '[PLUGIN][SLACK]', str(response.read()))
 
     def validate_config(self):

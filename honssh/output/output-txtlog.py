@@ -52,8 +52,8 @@ class Plugin(object):
             country = ' - ' + country
         
         # Log to daily auth log file
-        self.auth_log(session['start_time'], session['peer_ip'], 
-                     'CONNECTED', 'N/A', 'CONNECTION%s' % country)
+        # self.auth_log(session['start_time'], session['peer_ip'], 
+        #              'CONNECTED', 'N/A', 'CONNECTION%s' % country)
 
     def login_successful(self, sensor):
         session = sensor['session']

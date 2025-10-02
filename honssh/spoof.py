@@ -26,10 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-try:
-    import configparser as ConfigParser
-except ImportError:  # pragma: no cover
-    import ConfigParser
+import configparser as ConfigParser
 import os
 import random
 import re

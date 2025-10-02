@@ -395,10 +395,7 @@ class Output(object):
         response = False
         error = ''
         try:
-            try:
-                import urllib.request as urllib_request
-            except ImportError:  # pragma: no cover
-                import urllib2 as urllib_request  # type: ignore
+            import urllib.request
             # Sanitize malformed links like 'http://https://example.com' or 'https://http://'
             if link.startswith('http://https://'):
                 fixed = 'https://' + link[len('http://https://'):]
@@ -408,7 +405,7 @@ class Output(object):
                 fixed = 'http://' + link[len('https://http://'):]
                 log.msg(log.LYELLOW, '[OUTPUT]', f'Corrected malformed URL {link} -> {fixed}')
                 link = fixed
-            request = urllib_request.Request(link)
+            request = urllib.request.Request(link)
             request.add_header('Accept', 'text/plain')
             ua_cfg = ''
             try:
@@ -422,12 +419,12 @@ class Output(object):
             if user and password:
                 if link.startswith('ftp://'):
                     link = link[:6] + user + ':' + password + '@' + link[6:]
-                    request = urllib_request.Request(link)
+                    request = urllib.request.Request(link)
                 else:
                     import base64 as _b64
                     base64string = _b64.b64encode(('%s:%s' % (user, password)).encode()).decode()
                     request.add_header("Authorization", "Basic %s" % base64string)
-            response = urllib_request.urlopen(request)  # type: ignore
+            response = urllib.request.urlopen(request)  # type: ignore
         except Exception as ex:
             error = str(ex)
 

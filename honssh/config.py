@@ -26,10 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-try:
-    import configparser as ConfigParser  # Python 3
-except ImportError:  # pragma: no cover
-    import ConfigParser  # Python 2 fallback
+import configparser as ConfigParser
 import inspect
 
 from honssh.utils import validation

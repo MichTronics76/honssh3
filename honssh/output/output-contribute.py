@@ -32,10 +32,7 @@ from honssh.config import Config
 from honssh.utils import validation
 
 import json
-try:
-    import urllib.request as urllib_request
-except ImportError:  # pragma: no cover
-    import urllib2 as urllib_request  # type: ignore
+import urllib.request
 
 
 class Plugin(object):
@@ -65,11 +62,11 @@ class Plugin(object):
 
     def post_json(self, the_json):
         try:
-            req = urllib_request.Request('https://honssh.com/testing/contribute.php')
+            req = urllib.request.Request('https://honssh.com/testing/contribute.php')
             req.add_header('Content-Type', 'application/json')
             req.add_header('User-Agent', 'HonSSH-Contribute')
             req.add_header('Accept', 'text/plain')
-            urllib_request.urlopen(req, json.dumps(the_json).encode())  # type: ignore
+            urllib.request.urlopen(req, json.dumps(the_json).encode())  # type: ignore
         except Exception:
             pass
 
