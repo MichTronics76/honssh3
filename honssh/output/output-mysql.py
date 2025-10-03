@@ -111,7 +111,7 @@ class Plugin(object):
         channel = sensor['session']['channel']
         download = channel['download']
         self.insert(
-            'INSERT INTO `downloads` (`channelid`, `timestamp`, `link`, `outfile`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s)',
+            'INSERT INTO `downloads` (`channelid`, `timestamp`, `url`, `outfile`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s)',
             (channel['uuid'], self.now_unix(download['start_time']), download['link'], download['file']))
 
     def insert_sensor(self, sensor):
