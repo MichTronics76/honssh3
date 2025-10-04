@@ -2,6 +2,8 @@ CREATE TABLE `auth` (
   `success` TINYINT(1) NOT NULL,
   `username` VARCHAR(100) NOT NULL,
   `password` VARCHAR(100) NOT NULL,
+  `ip` VARCHAR(45) NOT NULL DEFAULT '',
+  `country` VARCHAR(100) NOT NULL DEFAULT '',
   `timestamp` DATETIME NOT NULL,
   PRIMARY KEY (`timestamp`, `password`, `username`, `success`)
 ) ;

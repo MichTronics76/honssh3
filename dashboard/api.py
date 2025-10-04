@@ -219,7 +219,7 @@ def get_session_details(session_id):
     
     # Get authentication attempts
     auth_query = """
-        SELECT timestamp, username, password, success
+        SELECT timestamp, username, password, success, ip, country
         FROM auth
         WHERE timestamp >= %s AND timestamp <= COALESCE(%s, NOW())
         ORDER BY timestamp
@@ -290,7 +290,7 @@ def get_auth_attempts():
     limit = request.args.get('limit', 100, type=int)
     success = request.args.get('success', None)
     
-    query = "SELECT timestamp, username, password, success FROM auth"
+    query = "SELECT timestamp, username, password, success, ip, country FROM auth"
     params = []
     
     if success is not None:
@@ -359,6 +359,56 @@ def get_top_combinations():
     """
     
     return jsonify(execute_query(query, (limit,)))
+
+
+@app.route('/api/auth/top-countries', methods=['GET'])
+def get_top_countries():
+    """Get authentication activity aggregated by country."""
+    limit = request.args.get('limit', 10, type=int)
+
+    query = """
+        SELECT
+            CASE
+                WHEN country IS NULL OR country = '' THEN 'Unknown'
+                ELSE country
+            END AS country,
+            COUNT(*) AS attempts,
+            SUM(success) AS successful,
+            COUNT(*) - SUM(success) AS failed
+        FROM auth
+        GROUP BY country
+        ORDER BY attempts DESC
+        LIMIT %s
+    """
+
+    return jsonify(execute_query(query, (limit,)))
+
+
+@app.route('/api/auth/top-ips', methods=['GET'])
+def get_top_ips():
+    """Get authentication activity aggregated by source IP."""
+    limit = request.args.get('limit', 10, type=int)
+
+    query = """
+        SELECT
+            ip,
+            COUNT(*) AS attempts,
+            SUM(success) AS successful,
+            COUNT(*) - SUM(success) AS failed,
+            MAX(timestamp) AS last_seen
+        FROM auth
+        GROUP BY ip
+        ORDER BY attempts DESC
+        LIMIT %s
+    """
+
+    results = execute_query(query, (limit,))
+
+    for row in results:
+        if row['last_seen']:
+            row['last_seen'] = row['last_seen'].strftime('%Y-%m-%d %H:%M:%S')
+
+    return jsonify(results)
 
 
 @app.route('/api/commands/recent', methods=['GET'])

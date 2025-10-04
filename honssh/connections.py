@@ -87,8 +87,15 @@ class Connections(object):
     def add_auth(self, session_id, date_time, username, password, success, spoofed):
         sensor, session = self.get_session(session_id)
         if session:
-            auth = {'date_time': date_time, 'username': username, 'password': password, 'success': success,
-                    'spoofed': spoofed}
+            auth = {
+                'date_time': date_time,
+                'username': username,
+                'password': password,
+                'success': success,
+                'spoofed': spoofed,
+                'ip': session.get('peer_ip', ''),
+                'country': session.get('country', '')
+            }
             session['auths'].append(auth)
             return self.return_auth(sensor, session, auth)
         return None

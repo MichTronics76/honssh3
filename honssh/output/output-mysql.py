@@ -41,6 +41,7 @@ class Plugin(object):
     def __init__(self):
         self.cfg = Config.getInstance()
         self.server = None
+        self._schema_checked = False
 
     def connect_dbserver(self):
         db = MySQLdb.connect(
@@ -55,16 +56,74 @@ class Plugin(object):
     def set_server(self, server):
         self.server = server
 
+    def ensure_auth_schema(self):
+        if self._schema_checked:
+            return
+
+        server = None
+        try:
+            server = self.connect_dbserver()
+            cursor = server.cursor()
+
+            cursor.execute("SHOW COLUMNS FROM `auth` LIKE 'ip'")
+            has_ip = cursor.fetchone() is not None
+
+            cursor.execute("SHOW COLUMNS FROM `auth` LIKE 'country'")
+            has_country = cursor.fetchone() is not None
+
+            altered = False
+
+            if not has_ip:
+                cursor.execute(
+                    "ALTER TABLE `auth` ADD COLUMN `ip` VARCHAR(45) NOT NULL DEFAULT '' AFTER `password`"
+                )
+                altered = True
+
+            if not has_country:
+                cursor.execute(
+                    "ALTER TABLE `auth` ADD COLUMN `country` VARCHAR(100) NOT NULL DEFAULT '' AFTER `ip`"
+                )
+                altered = True
+
+            if altered:
+                server.commit()
+                log.msg(log.LGREEN, '[PLUGIN][MYSQL]', 'Auth table schema updated with IP/Country columns')
+            else:
+                log.msg(log.LBLUE, '[PLUGIN][MYSQL]', 'Auth table already has IP/Country columns')
+
+            self._schema_checked = True
+        except MySQLdb.OperationalError as e:
+            self.sqlerror(e)
+            self._schema_checked = False
+        except Exception as e:
+            log.msg(log.LYELLOW, '[PLUGIN][MYSQL]', f'Unable to ensure auth schema: {e}')
+            self._schema_checked = False
+        finally:
+            if server:
+                server.close()
+
     def connection_lost(self, sensor):
         session = sensor['session']
         self.insert('UPDATE `sessions` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s',
                     (self.now_unix(session['end_time']), session['session_id']))
 
     def login_successful(self, sensor):
+        self.ensure_auth_schema()
         auth = sensor['session']['auth']
+        session_data = sensor['session']
+        attacker_ip = auth.get('ip', session_data.get('peer_ip', ''))
+        country = auth.get('country', session_data.get('country', ''))
+
         self.insert(
-            'INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))',
-            (1, auth['username'], auth['password'], self.now_unix(auth['date_time'])))
+            'INSERT INTO `auth` (`success`, `username`, `password`, `ip`, `country`, `timestamp`) VALUES '
+            '(%s, %s, %s, %s, %s, FROM_UNIXTIME(%s))',
+            (1, auth['username'], auth['password'], attacker_ip, country, self.now_unix(auth['date_time'])))
+
+        log.msg(
+            log.LBLUE,
+            '[PLUGIN][MYSQL]',
+            f'Inserted successful auth for {attacker_ip} ({country}) user={auth["username"]}'
+        )
 
         id = self.insert_sensor(sensor)
         # now that we have a sensorID, continue creating the session
@@ -77,10 +136,22 @@ class Plugin(object):
         self.insert('UPDATE `sessions` SET `client` = %s WHERE `id` = %s', (id, session['session_id']))
 
     def login_failed(self, sensor):
+        self.ensure_auth_schema()
         auth = sensor['session']['auth']
+        session_data = sensor['session']
+        attacker_ip = auth.get('ip', session_data.get('peer_ip', ''))
+        country = auth.get('country', session_data.get('country', ''))
+
         self.insert(
-            'INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))',
-            (0, auth['username'], auth['password'], self.now_unix(auth['date_time'])))
+            'INSERT INTO `auth` (`success`, `username`, `password`, `ip`, `country`, `timestamp`) VALUES '
+            '(%s, %s, %s, %s, %s, FROM_UNIXTIME(%s))',
+            (0, auth['username'], auth['password'], attacker_ip, country, self.now_unix(auth['date_time'])))
+
+        log.msg(
+            log.LBLUE,
+            '[PLUGIN][MYSQL]',
+            f'Inserted failed auth for {attacker_ip} ({country}) user={auth["username"]}'
+        )
 
     def channel_opened(self, sensor):
         channel = sensor['session']['channel']

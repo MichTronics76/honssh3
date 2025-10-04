@@ -308,6 +308,70 @@
             border-left: 3px solid var(--info-color);
         }
 
+        .auth-item {
+            padding: 12px 16px;
+            background: var(--dark-bg);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--warning-color);
+            transition: transform 0.2s ease;
+        }
+
+        .auth-item.success {
+            border-left-color: var(--success-color);
+        }
+
+        .auth-item.failed {
+            border-left-color: var(--danger-color);
+        }
+
+        .auth-item:hover {
+            transform: translateX(4px);
+        }
+
+        .auth-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .auth-user {
+            font-weight: 600;
+        }
+
+        .auth-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .auth-password {
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .auth-status {
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .auth-item.success .auth-status {
+            color: var(--success-color);
+        }
+
+        .auth-item.failed .auth-status {
+            color: var(--danger-color);
+        }
+
         .scrollable-list {
             max-height: 400px;
             overflow-y: auto;
@@ -430,6 +494,42 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🌍 Top Countries</h2>
+                </div>
+                <table class="table" id="topCountries">
+                    <thead>
+                        <tr>
+                            <th>Country</th>
+                            <th>Attempts</th>
+                            <th>Success</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📡 Top Source IPs</h2>
+                </div>
+                <table class="table" id="topIps">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Attempts</th>
+                            <th>Last Seen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div class="card full-width">
@@ -450,11 +550,45 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="card full-width">
+            <div class="card-header">
+                <h2 class="card-title">🔐 Recent Authentication Attempts</h2>
+                <span class="badge badge-info" id="recentAuthCount">0</span>
+            </div>
+            <div class="scrollable-list" id="recentAuthAttempts">
+                <div class="loading"><p>Loading recent logins...</p></div>
+            </div>
+        </div>
     </div>
 
     <script>
         const API_BASE = 'http://localhost:5000/api';
         let charts = {};
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatDateTime(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp.replace(' ', 'T'));
+            if (Number.isNaN(date.getTime())) {
+                return timestamp;
+            }
+            return date.toLocaleString();
+        }
+
+        function formatSuccessRate(success, total) {
+            if (!total) return '0%';
+            return `${((success / total) * 100).toFixed(1)}%`;
+        }
 
         // Initialize dashboard
         async function initDashboard() {
@@ -467,12 +601,18 @@
             await loadTopUsernames();
             await loadTopPasswords();
             await loadTopAttackers();
+            await loadTopCountries();
+            await loadTopIps();
+            await loadRecentAuthAttempts();
             
             // Auto-refresh every 10 seconds
             setInterval(() => {
                 loadOverviewStats();
                 loadActiveSessions();
                 loadRecentCommands();
+                loadTopCountries();
+                loadTopIps();
+                loadRecentAuthAttempts();
             }, 10000);
         }
 
@@ -781,6 +921,108 @@
                 }).join('');
             } catch (error) {
                 console.error('Error loading usernames:', error);
+            }
+        }
+
+        async function loadTopCountries() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/top-countries?limit=10`);
+                const countries = await response.json();
+
+                const tbody = document.querySelector('#topCountries tbody');
+                if (!countries.length) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="loading">No data</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = countries.map(country => {
+                    const attempts = country.attempts || 0;
+                    const success = country.successful || 0;
+                    const rate = formatSuccessRate(success, attempts);
+                    return `
+                        <tr>
+                            <td>${escapeHTML(country.country)}</td>
+                            <td>${attempts}</td>
+                            <td>${rate}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading top countries:', error);
+            }
+        }
+
+        async function loadTopIps() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/top-ips?limit=10`);
+                const ips = await response.json();
+
+                const tbody = document.querySelector('#topIps tbody');
+                if (!ips.length) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="loading">No data</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = ips.map(ipRow => {
+                    const attempts = ipRow.attempts || 0;
+                    const success = ipRow.successful || 0;
+                    const rate = formatSuccessRate(success, attempts);
+                    const ipValue = ipRow.ip ? escapeHTML(ipRow.ip) : 'Unknown';
+                    const lastSeen = ipRow.last_seen ? formatDateTime(ipRow.last_seen) : '—';
+                    return `
+                        <tr>
+                            <td>${ipValue}<br><span class="auth-password">${rate} success</span></td>
+                            <td>${attempts}</td>
+                            <td>${lastSeen}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading top IPs:', error);
+            }
+        }
+
+        async function loadRecentAuthAttempts() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/attempts?limit=20`);
+                const attempts = await response.json();
+
+                const container = document.getElementById('recentAuthAttempts');
+                const badge = document.getElementById('recentAuthCount');
+                if (!container) return;
+
+                badge.textContent = attempts.length;
+
+                if (!attempts.length) {
+                    container.innerHTML = '<div class="loading"><p>No recent authentication attempts.</p></div>';
+                    return;
+                }
+
+                container.innerHTML = attempts.map(attempt => {
+                    const statusClass = attempt.success ? 'success' : 'failed';
+                    const statusLabel = attempt.success ? 'Success' : 'Failed';
+                    const username = escapeHTML(attempt.username || '');
+                    const password = escapeHTML(attempt.password || '');
+                    const ip = escapeHTML(attempt.ip || 'Unknown');
+                    const country = escapeHTML(attempt.country || 'Unknown');
+                    const timestamp = formatDateTime(attempt.timestamp);
+                    return `
+                        <div class="auth-item ${statusClass}">
+                            <div class="auth-header">
+                                <span class="auth-user">${username || '<em>anonymous</em>'}</span>
+                                <span class="auth-status">${statusLabel}</span>
+                            </div>
+                            <div class="auth-meta">
+                                <span>IP: ${ip}</span>
+                                <span>Country: ${country}</span>
+                                <span>${timestamp}</span>
+                            </div>
+                            <div class="auth-password">Password: ${password || '<em>(empty)</em>'}</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading recent auth attempts:', error);
             }
         }
 

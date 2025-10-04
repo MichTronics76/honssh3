@@ -135,6 +135,20 @@ pip check  # Should show "No broken requirements found"
 python3 -c "import twisted; print(f'Twisted {twisted.__version__} OK')"
 ```
 
+## Database Schema Notes
+
+HonSSH3 ships with a reference MySQL schema in `utils/honssh.sql`. Recent releases add
+attacker IP and country metadata to the `auth` table. If you're upgrading an existing
+database, run the following before restarting HonSSH3:
+
+```sql
+ALTER TABLE `auth`
+   ADD COLUMN `ip` VARCHAR(45) NOT NULL DEFAULT '' AFTER `password`,
+   ADD COLUMN `country` VARCHAR(100) NOT NULL DEFAULT '' AFTER `ip`;
+```
+
+New installations that bootstrap from `utils/honssh.sql` already include these columns.
+
 ## Upgrading
 
 To upgrade all dependencies to the latest versions:
